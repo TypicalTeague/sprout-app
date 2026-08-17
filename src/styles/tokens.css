@@ -1,0 +1,66 @@
+:root {
+  --bg: #fdf9f6;
+  --panel: #ffffff;
+  --ink: #3a3550;
+  --ink-soft: #746e8c;
+  --ink-faint: #a9a3be;
+  --border: #efe7f5;
+
+  --accent: #b497d6;
+  --accent-dark: #8b6bb8;
+  --accent-bg: #f3ecfb;
+
+  --mint: #9fd8c8;
+  --mint-bg: #e9f7f1;
+
+  --peach: #f4b8a0;
+  --peach-bg: #fdece4;
+
+  --sky: #a6cdeb;
+  --sky-bg: #eaf3fb;
+
+  --yellow: #f0ca6e;
+  --yellow-bg: #fcf3dd;
+
+  --danger: #e8836f;
+  --danger-bg: #fde6e0;
+  --danger-text: #c1543c;
+
+  --warn: #f0b84e;
+  --warn-bg: #fcf0d9;
+  --warn-text: #a87a15;
+
+  --safe: #7fbfa0;
+  --safe-bg: #e7f5ee;
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow: 0 4px 16px rgba(120, 100, 160, 0.08);
+  --shadow-lift: 0 10px 30px rgba(120, 100, 160, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.brand {
+  font-family: 'Quicksand', 'Poppins', sans-serif;
+}
