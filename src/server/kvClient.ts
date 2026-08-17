@@ -6,7 +6,7 @@
 
 import process from 'node:process';
 import { Redis } from '@upstash/redis';
-import type { KVClient } from './store';
+import type { KVClient } from './store.js';
 
 function findEnv(names: string[]): string | undefined {
   for (const name of names) {

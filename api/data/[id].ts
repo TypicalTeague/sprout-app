@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getUserData, saveUserData } from '../../src/server/store';
-import { getKVClient } from '../../src/server/kvClient';
-import type { UserDataInput } from '../../src/types/userData';
+import { getUserData, saveUserData } from '../../src/server/store.js';
+import { getKVClient } from '../../src/server/kvClient.js';
+import type { UserDataInput } from '../../src/types/userData.js';
 
 const ID_PATTERN = /^[a-zA-Z0-9-]{8,100}$/;
 

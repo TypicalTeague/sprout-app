@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createIdentity } from '../src/server/store';
-import { getKVClient } from '../src/server/kvClient';
+import { createIdentity } from '../src/server/store.js';
+import { getKVClient } from '../src/server/kvClient.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

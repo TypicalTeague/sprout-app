@@ -2,7 +2,7 @@
 // testable without a real Redis instance. api/*.ts is a thin adapter over
 // this module (constitution.md: "small typed data-access module").
 
-import type { UserData, UserDataInput } from '../types/userData';
+import type { UserData, UserDataInput } from '../types/userData.js';
 
 export interface KVClient {
   get(key: string): Promise<string | null>;
