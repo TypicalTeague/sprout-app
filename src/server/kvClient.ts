@@ -27,7 +27,14 @@ export function getKVClient(): KVClient {
   if (url && token) {
     const redis = new Redis({ url, token });
     cached = {
-      get: (key) => redis.get<string>(key).then((v) => (v == null ? null : String(v))),
+      // @upstash/redis auto-deserializes JSON-looking values on get(), so a
+      // stored JSON string comes back as a parsed object, not a string.
+      // Normalize back to a string either way to honor the KVClient contract.
+      get: async (key) => {
+        const v = await redis.get<unknown>(key);
+        if (v == null) return null;
+        return typeof v === 'string' ? v : JSON.stringify(v);
+      },
       set: (key, value) => redis.set(key, value).then(() => undefined),
     };
     return cached;
