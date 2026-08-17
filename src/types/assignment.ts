@@ -1,11 +1,11 @@
-// Traces to spec.md story 2-6 and plan.md data model.
+// Traces to spec.md stories 2, 4, 5, 8 and plan.md data model.
 
 export type AssignmentType = 'exam' | 'paper' | 'reading' | 'pset' | 'other';
 
 export interface Assignment {
   id: string;
   title: string;
-  className: string;
+  classId: string | null; // null renders as "General"; references ClassEntry.id
   dueDate: string; // ISO date, YYYY-MM-DD
   type: AssignmentType;
   done: boolean;
@@ -14,7 +14,7 @@ export interface Assignment {
 
 export interface NewAssignmentInput {
   title: string;
-  className?: string;
+  className?: string; // typed name; resolved to a classId (existing or newly-created) by useUserData
   dueDate: string;
   type?: AssignmentType;
 }

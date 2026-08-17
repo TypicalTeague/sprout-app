@@ -1,6 +1,5 @@
-// Traces to spec.md stories 1-6, wiring all components together.
-// T11: Sidebar, Topbar, view toggle switching Month/Agenda without reload,
-// modal open/save wiring.
+// Traces to spec.md stories 1-9. Wires identity resolution, server-backed
+// data, and all CRUD UI together.
 
 import { useState } from 'react';
 import './styles/tokens.css';
@@ -12,8 +11,14 @@ import { ViewToggle } from './components/ViewToggle';
 import type { ViewMode } from './components/ViewToggle';
 import { MonthGrid } from './components/MonthGrid';
 import { AgendaList } from './components/AgendaList';
-import { AddAssignmentModal } from './components/AddAssignmentModal';
-import { useAssignments } from './hooks/useAssignments';
+import { AssignmentModal } from './components/AssignmentModal';
+import { OnboardingModal } from './components/OnboardingModal';
+import { SettingsModal } from './components/SettingsModal';
+import { LinkSaveBanner } from './components/LinkSaveBanner';
+import { useIdentity } from './hooks/useIdentity';
+import { useUserData } from './hooks/useUserData';
+import type { Assignment } from './types/assignment';
+import { privateUrl } from './lib/identity';
 
 const TYPE_LEGEND = [
   { label: 'Exam', color: 'var(--danger)' },
@@ -24,19 +29,67 @@ const TYPE_LEGEND = [
 ];
 
 function App() {
-  const { assignments, addAssignment, toggleComplete } = useAssignments();
+  const { id } = useIdentity();
+  const {
+    data,
+    loading,
+    setName,
+    addAssignment,
+    updateAssignment,
+    deleteAssignment,
+    toggleComplete,
+    addClass,
+    renameClass,
+    deleteClass,
+    dismissOnboarding,
+    dismissLinkNotice,
+  } = useUserData(id);
+
   const [view, setView] = useState<ViewMode>('month');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const today = new Date();
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
+
+  if (!id || loading || !data) {
+    return (
+      <div className="app-shell">
+        <div className="loading-screen">🌱</div>
+      </div>
+    );
+  }
+
+  const isFreshIdentity =
+    !data.name && data.classes.length === 0 && data.assignments.length === 0;
+  const showOnboarding = isFreshIdentity && !data.onboardingDismissed;
+
+  const openAddModal = () => {
+    setEditingAssignment(null);
+    setAssignmentModalOpen(true);
+  };
+
+  const openEditModal = (assignment: Assignment) => {
+    setEditingAssignment(assignment);
+    setAssignmentModalOpen(true);
+  };
 
   return (
     <div className="app-shell">
       <Sidebar />
       <div className="main">
-        <Topbar onAddClick={() => setModalOpen(true)} />
-        <UpNextStrip assignments={assignments} />
+        <Topbar
+          name={data.name}
+          onAddClick={openAddModal}
+          onAvatarClick={() => setSettingsOpen(true)}
+        />
+
+        {!data.linkNoticeDismissed && (
+          <LinkSaveBanner url={privateUrl(id)} onDismiss={dismissLinkNotice} />
+        )}
+
+        <UpNextStrip assignments={data.assignments} classes={data.classes} />
 
         <div className="board">
           <div className="board-toolbar">
@@ -56,24 +109,56 @@ function App() {
 
           {view === 'month' ? (
             <MonthGrid
-              assignments={assignments}
+              assignments={data.assignments}
               month={month}
               year={year}
               onMonthChange={(m, y) => {
                 setMonth(m);
                 setYear(y);
               }}
+              onSelectAssignment={openEditModal}
             />
           ) : (
-            <AgendaList assignments={assignments} onToggleComplete={toggleComplete} />
+            <AgendaList
+              assignments={data.assignments}
+              classes={data.classes}
+              onToggleComplete={toggleComplete}
+              onSelectAssignment={openEditModal}
+            />
           )}
         </div>
       </div>
 
-      <AddAssignmentModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+      <AssignmentModal
+        open={assignmentModalOpen}
+        assignment={editingAssignment}
+        classes={data.classes}
+        onClose={() => setAssignmentModalOpen(false)}
         onSave={addAssignment}
+        onUpdate={updateAssignment}
+        onDelete={deleteAssignment}
+      />
+
+      <OnboardingModal
+        open={showOnboarding}
+        onSkip={dismissOnboarding}
+        onSave={(name, classNames) => {
+          if (name) setName(name);
+          for (const c of classNames) addClass(c);
+          dismissOnboarding();
+        }}
+      />
+
+      <SettingsModal
+        open={settingsOpen}
+        name={data.name}
+        classes={data.classes}
+        privateUrl={privateUrl(id)}
+        onClose={() => setSettingsOpen(false)}
+        onSaveName={setName}
+        onAddClass={addClass}
+        onRenameClass={renameClass}
+        onDeleteClass={deleteClass}
       />
     </div>
   );

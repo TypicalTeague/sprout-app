@@ -14,6 +14,7 @@ interface MonthGridProps {
   month: number; // 0-11
   year: number;
   onMonthChange: (month: number, year: number) => void;
+  onSelectAssignment: (assignment: Assignment) => void;
 }
 
 function toISODate(year: number, month: number, day: number): string {
@@ -22,7 +23,7 @@ function toISODate(year: number, month: number, day: number): string {
   return `${year}-${mm}-${dd}`;
 }
 
-export function MonthGrid({ assignments, month, year, onMonthChange }: MonthGridProps) {
+export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAssignment }: MonthGridProps) {
   const today = new Date();
   const firstOfMonth = new Date(year, month, 1);
   const startOffset = firstOfMonth.getDay();
@@ -75,7 +76,19 @@ export function MonthGrid({ assignments, month, year, onMonthChange }: MonthGrid
             >
               <div className="day-num">{cell.day}</div>
               {shown.map((a) => (
-                <div className={`day-chip chip-${a.type}`} key={a.id}>
+                <div
+                  className={`day-chip chip-${a.type}`}
+                  key={a.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectAssignment(a)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectAssignment(a);
+                    }
+                  }}
+                >
                   {ASSIGNMENT_TYPE_META[a.type].icon} {a.title}
                 </div>
               ))}

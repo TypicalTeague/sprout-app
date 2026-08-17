@@ -2,14 +2,17 @@
 
 import type { Assignment } from '../types/assignment';
 import { ASSIGNMENT_TYPE_META } from '../types/assignment';
+import type { ClassEntry } from '../types/userData';
 import { getUrgencyBucket, getUrgencyLabel, formatShortDate } from '../lib/urgency';
+import { resolveClassName } from '../lib/classes';
 import { EmptyState } from './EmptyState';
 
 interface UpNextStripProps {
   assignments: Assignment[];
+  classes: ClassEntry[];
 }
 
-export function UpNextStrip({ assignments }: UpNextStripProps) {
+export function UpNextStrip({ assignments, classes }: UpNextStripProps) {
   const upcoming = assignments
     .filter((a) => !a.done)
     .sort((a, b) => (a.dueDate === b.dueDate ? a.createdAt.localeCompare(b.createdAt) : a.dueDate.localeCompare(b.dueDate)))
@@ -41,7 +44,7 @@ export function UpNextStrip({ assignments }: UpNextStripProps) {
                 </span>
                 <h3>{a.title}</h3>
                 <div className="meta">
-                  🎓 {a.className} &nbsp;·&nbsp; {formatShortDate(a.dueDate)}
+                  🎓 {resolveClassName(classes, a.classId)} &nbsp;·&nbsp; {formatShortDate(a.dueDate)}
                 </div>
               </div>
             );

@@ -2,15 +2,19 @@
 
 import type { Assignment } from '../types/assignment';
 import { ASSIGNMENT_TYPE_META } from '../types/assignment';
+import type { ClassEntry } from '../types/userData';
 import { getUrgencyBucket, getUrgencyLabel, getAgendaGroupLabel } from '../lib/urgency';
+import { resolveClassName } from '../lib/classes';
 import { EmptyState } from './EmptyState';
 
 interface AgendaListProps {
   assignments: Assignment[];
+  classes: ClassEntry[];
   onToggleComplete: (id: string) => void;
+  onSelectAssignment: (assignment: Assignment) => void;
 }
 
-export function AgendaList({ assignments, onToggleComplete }: AgendaListProps) {
+export function AgendaList({ assignments, classes, onToggleComplete, onSelectAssignment }: AgendaListProps) {
   if (assignments.length === 0) {
     return <EmptyState emoji="🌤️" message="Nothing on the horizon — enjoy the calm!" />;
   }
@@ -56,9 +60,20 @@ export function AgendaList({ assignments, onToggleComplete }: AgendaListProps) {
                       }}
                     />
                     <div className={`a-icon type-bg-${a.type}`}>{meta.icon}</div>
-                    <div className="a-body">
+                    <div
+                      className="a-body"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onSelectAssignment(a)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onSelectAssignment(a);
+                        }
+                      }}
+                    >
                       <div className="a-title">{a.title}</div>
-                      <div className="a-meta">{a.className} · {meta.label}</div>
+                      <div className="a-meta">{resolveClassName(classes, a.classId)} · {meta.label}</div>
                     </div>
                     <div className={`a-time urgency-${bucket}`}>{getUrgencyLabel(a.dueDate)}</div>
                   </div>
