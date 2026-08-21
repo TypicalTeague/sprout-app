@@ -5,6 +5,7 @@ import { useState } from 'react';
 import './styles/tokens.css';
 import './styles/app.css';
 import { Sidebar } from './components/Sidebar';
+import type { PageKey } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { UpNextStrip } from './components/UpNextStrip';
 import { ViewToggle } from './components/ViewToggle';
@@ -15,6 +16,8 @@ import { AssignmentModal } from './components/AssignmentModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { SettingsModal } from './components/SettingsModal';
 import { LinkSaveBanner } from './components/LinkSaveBanner';
+import { ClassesPage } from './components/ClassesPage';
+import { StudyTimer } from './components/StudyTimer';
 import { useIdentity } from './hooks/useIdentity';
 import { useUserData } from './hooks/useUserData';
 import type { Assignment } from './types/assignment';
@@ -22,10 +25,14 @@ import { privateUrl } from './lib/identity';
 
 const TYPE_LEGEND = [
   { label: 'Exam', color: 'var(--danger)' },
+  { label: 'Quiz', color: 'var(--warn)' },
+  { label: 'Homework / Assignment', color: 'var(--peach)' },
   { label: 'Paper / Project', color: 'var(--accent)' },
   { label: 'Reading', color: 'var(--sky)' },
   { label: 'Problem Set', color: 'var(--mint)' },
-  { label: 'Other', color: 'var(--yellow)' },
+  { label: 'Presentation', color: 'var(--safe)' },
+  { label: 'Lab', color: 'var(--yellow)' },
+  { label: 'Other', color: 'var(--ink-faint)' },
 ];
 
 function App() {
@@ -45,9 +52,11 @@ function App() {
     dismissLinkNotice,
   } = useUserData(id);
 
+  const [page, setPage] = useState<PageKey>('calendar');
   const [view, setView] = useState<ViewMode>('month');
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [defaultDueDate, setDefaultDueDate] = useState<string | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const today = new Date();
   const [month, setMonth] = useState(today.getMonth());
@@ -65,8 +74,9 @@ function App() {
     !data.name && data.classes.length === 0 && data.assignments.length === 0;
   const showOnboarding = isFreshIdentity && !data.onboardingDismissed;
 
-  const openAddModal = () => {
+  const openAddModal = (dateStr?: string) => {
     setEditingAssignment(null);
+    setDefaultDueDate(dateStr);
     setAssignmentModalOpen(true);
   };
 
@@ -77,11 +87,11 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      <Sidebar page={page} onNavigate={setPage} />
       <div className="main">
         <Topbar
           name={data.name}
-          onAddClick={openAddModal}
+          onAddClick={() => openAddModal()}
           onAvatarClick={() => setSettingsOpen(true)}
         />
 
@@ -89,50 +99,68 @@ function App() {
           <LinkSaveBanner url={privateUrl(id)} onDismiss={dismissLinkNotice} />
         )}
 
-        <UpNextStrip assignments={data.assignments} classes={data.classes} />
+        {page === 'calendar' && (
+          <>
+            <UpNextStrip assignments={data.assignments} classes={data.classes} />
 
-        <div className="board">
-          <div className="board-toolbar">
-            <ViewToggle view={view} onChange={setView} />
-          </div>
+            <div className="board">
+              <div className="board-toolbar">
+                <ViewToggle view={view} onChange={setView} />
+              </div>
 
-          {view === 'month' && (
-            <div className="legend">
-              {TYPE_LEGEND.map((item) => (
-                <div className="legend-item" key={item.label}>
-                  <span className="legend-dot" style={{ background: item.color }} />
-                  {item.label}
+              {view === 'month' && (
+                <div className="legend">
+                  {TYPE_LEGEND.map((item) => (
+                    <div className="legend-item" key={item.label}>
+                      <span className="legend-dot" style={{ background: item.color }} />
+                      {item.label}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {view === 'month' ? (
-            <MonthGrid
-              assignments={data.assignments}
-              month={month}
-              year={year}
-              onMonthChange={(m, y) => {
-                setMonth(m);
-                setYear(y);
-              }}
-              onSelectAssignment={openEditModal}
-            />
-          ) : (
-            <AgendaList
-              assignments={data.assignments}
-              classes={data.classes}
-              onToggleComplete={toggleComplete}
-              onSelectAssignment={openEditModal}
-            />
-          )}
-        </div>
+              {view === 'month' ? (
+                <MonthGrid
+                  assignments={data.assignments}
+                  month={month}
+                  year={year}
+                  onMonthChange={(m, y) => {
+                    setMonth(m);
+                    setYear(y);
+                  }}
+                  onSelectAssignment={openEditModal}
+                  onAddOnDate={openAddModal}
+                />
+              ) : (
+                <AgendaList
+                  assignments={data.assignments}
+                  classes={data.classes}
+                  onToggleComplete={toggleComplete}
+                  onSelectAssignment={openEditModal}
+                />
+              )}
+            </div>
+          </>
+        )}
+
+        {page === 'classes' && (
+          <ClassesPage
+            classes={data.classes}
+            assignments={data.assignments}
+            onAddClass={addClass}
+            onRenameClass={renameClass}
+            onDeleteClass={deleteClass}
+          />
+        )}
+
+        {page === 'timer' && <StudyTimer />}
       </div>
 
       <AssignmentModal
         open={assignmentModalOpen}
         assignment={editingAssignment}
         classes={data.classes}
+        defaultDueDate={defaultDueDate}
         onClose={() => setAssignmentModalOpen(false)}
         onSave={addAssignment}
         onUpdate={updateAssignment}
@@ -152,13 +180,10 @@ function App() {
       <SettingsModal
         open={settingsOpen}
         name={data.name}
-        classes={data.classes}
         privateUrl={privateUrl(id)}
         onClose={() => setSettingsOpen(false)}
         onSaveName={setName}
-        onAddClass={addClass}
-        onRenameClass={renameClass}
-        onDeleteClass={deleteClass}
+        onGoToClasses={() => setPage('classes')}
       />
     </div>
   );

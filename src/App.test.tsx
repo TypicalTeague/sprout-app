@@ -179,11 +179,11 @@ describe('App', () => {
     expect(screen.getByLabelText('Mark "Finish reading" incomplete')).toBeInTheDocument();
   });
 
-  it('adds, renames, and deletes a class from settings (story 7)', async () => {
+  it('adds, renames, and deletes a class from the Classes tab (story 7)', async () => {
     vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
     render(<App />);
-    fireEvent.click(await screen.findByLabelText('Open settings'));
-    expect(await screen.findByText('Settings')).toBeInTheDocument();
+    fireEvent.click(await screen.findByText('Classes'));
+    expect(await screen.findByText('Your classes')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Add a class'), {
       target: { value: 'BIO 201' },
@@ -201,5 +201,64 @@ describe('App', () => {
     fireEvent.click(deleteButtons[0]);
     fireEvent.click(screen.getByText('Confirm?'));
     expect(screen.queryByText('BIO 202')).not.toBeInTheDocument();
+  });
+
+  it('settings links to the Classes tab instead of duplicating class management (story 7)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText('Open settings'));
+    expect(await screen.findByText('Settings')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Go to Classes →'));
+    expect(await screen.findByText('Your classes')).toBeInTheDocument();
+  });
+
+  it('clicking a day cell opens the add-assignment modal with that date pre-filled (story 2/4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    await screen.findByText('Sprout');
+    const todayCell = document.querySelector('.day-cell.today') as HTMLElement;
+    fireEvent.click(todayCell);
+    expect(await screen.findByText('Add an assignment')).toBeInTheDocument();
+    const dateInput = screen.getByLabelText('Due date') as HTMLInputElement;
+    const now = new Date();
+    const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    expect(dateInput.value).toBe(expected);
+  });
+
+  it('the + Add assignment button still opens the modal with no date pre-filled beyond today (story 4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByText('＋ Add assignment'));
+    expect(await screen.findByText('Add an assignment')).toBeInTheDocument();
+    const dateInput = screen.getByLabelText('Due date') as HTMLInputElement;
+    expect(dateInput.value).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  it('broadened type list includes the new preset types (story 4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByText('＋ Add assignment'));
+    expect(await screen.findByText('Quiz')).toBeInTheDocument();
+    expect(screen.getByText('Homework / Assignment')).toBeInTheDocument();
+    expect(screen.getByText('Presentation')).toBeInTheDocument();
+    expect(screen.getByText('Lab')).toBeInTheDocument();
+    // existing types are still present, unrenamed at the value level
+    expect(screen.getByText('Exam')).toBeInTheDocument();
+    expect(screen.getByText('Reading')).toBeInTheDocument();
+    expect(screen.getByText('Problem Set')).toBeInTheDocument();
+  });
+
+  it('Study Timer renders a countdown and toggles start/pause (story 10)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByText('Study Timer'));
+    expect(await screen.findByText('25:00')).toBeInTheDocument();
+    expect(document.querySelector('.timer-cycle-count')?.textContent).toMatch(
+      /0 focus cycles completed/,
+    );
+    fireEvent.click(screen.getByText('Start'));
+    expect(await screen.findByText('Pause')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Pause'));
+    expect(await screen.findByText('Start')).toBeInTheDocument();
   });
 });

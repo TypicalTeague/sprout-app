@@ -1,6 +1,17 @@
 // Traces to spec.md stories 2, 4, 5, 8 and plan.md data model.
+// v3: widened purely additively — exam/paper/reading/pset/other keep their
+// exact stored values/meaning; see constitution.md's "Data safety" section.
 
-export type AssignmentType = 'exam' | 'paper' | 'reading' | 'pset' | 'other';
+export type AssignmentType =
+  | 'exam'
+  | 'quiz'
+  | 'homework'
+  | 'paper'
+  | 'reading'
+  | 'pset'
+  | 'presentation'
+  | 'lab'
+  | 'other';
 
 export interface Assignment {
   id: string;
@@ -24,8 +35,12 @@ export const ASSIGNMENT_TYPE_META: Record<
   { label: string; icon: string }
 > = {
   exam: { label: 'Exam', icon: '🧪' },
-  paper: { label: 'Paper', icon: '📝' },
+  quiz: { label: 'Quiz', icon: '❓' },
+  homework: { label: 'Homework / Assignment', icon: '📚' },
+  paper: { label: 'Paper / Project', icon: '📝' },
   reading: { label: 'Reading', icon: '📖' },
   pset: { label: 'Problem Set', icon: '➗' },
+  presentation: { label: 'Presentation', icon: '🎤' },
+  lab: { label: 'Lab', icon: '🔬' },
   other: { label: 'Other', icon: '✨' },
 };

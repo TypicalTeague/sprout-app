@@ -1,38 +1,29 @@
-// Traces to spec.md story 7 (manage classes any time) and story 9 (name
+// Traces to spec.md story 7 (v3: links to the Classes tab, its one true
+// home — see constitution.md's "Data safety" section for why the class
+// CRUD logic itself didn't move, just this modal's UI) and story 9 (name
 // editable later, not just at onboarding), plus the constitution's
 // "Persistence & identity" private-link note.
 
 import { useEffect, useState } from 'react';
-import type { ClassEntry } from '../types/userData';
-import { ConfirmButton } from './ConfirmButton';
 
 interface SettingsModalProps {
   open: boolean;
   name: string | null;
-  classes: ClassEntry[];
   privateUrl: string;
   onClose: () => void;
   onSaveName: (name: string) => void;
-  onAddClass: (name: string) => void;
-  onRenameClass: (id: string, name: string) => void;
-  onDeleteClass: (id: string) => void;
+  onGoToClasses: () => void;
 }
 
 export function SettingsModal({
   open,
   name,
-  classes,
   privateUrl,
   onClose,
   onSaveName,
-  onAddClass,
-  onRenameClass,
-  onDeleteClass,
+  onGoToClasses,
 }: SettingsModalProps) {
   const [nameInput, setNameInput] = useState(name ?? '');
-  const [newClass, setNewClass] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -44,24 +35,6 @@ export function SettingsModal({
   const handleClose = () => {
     if (nameInput.trim() !== (name ?? '')) onSaveName(nameInput);
     onClose();
-  };
-
-  const handleAddClass = () => {
-    if (!newClass.trim()) return;
-    onAddClass(newClass);
-    setNewClass('');
-  };
-
-  const startEditing = (c: ClassEntry) => {
-    setEditingId(c.id);
-    setEditingValue(c.name);
-  };
-
-  const commitEditing = () => {
-    if (editingId && editingValue.trim()) {
-      onRenameClass(editingId, editingValue);
-    }
-    setEditingId(null);
   };
 
   const handleCopy = async () => {
@@ -99,46 +72,18 @@ export function SettingsModal({
 
         <div className="field">
           <label>Your classes</label>
-          <div className="class-list">
-            {classes.length === 0 && <p className="sub" style={{ margin: '4px 0' }}>No classes yet.</p>}
-            {classes.map((c) => (
-              <div className="class-row" key={c.id}>
-                {editingId === c.id ? (
-                  <input
-                    type="text"
-                    autoFocus
-                    value={editingValue}
-                    onChange={(e) => setEditingValue(e.target.value)}
-                    onBlur={commitEditing}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitEditing();
-                      if (e.key === 'Escape') setEditingId(null);
-                    }}
-                  />
-                ) : (
-                  <span className="class-name" onClick={() => startEditing(c)}>{c.name}</span>
-                )}
-                <ConfirmButton
-                  className="btn-ghost btn-danger btn-small"
-                  label="Delete"
-                  confirmLabel="Confirm?"
-                  onConfirm={() => onDeleteClass(c.id)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="class-add-row">
-            <input
-              type="text"
-              placeholder="Add a class"
-              value={newClass}
-              onChange={(e) => setNewClass(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddClass();
-              }}
-            />
-            <button className="btn-ghost" onClick={handleAddClass}>+ Add</button>
-          </div>
+          <p className="sub" style={{ margin: '0 0 8px' }}>
+            Add, rename, or remove your classes from the Classes tab.
+          </p>
+          <button
+            className="btn-ghost"
+            onClick={() => {
+              onGoToClasses();
+              onClose();
+            }}
+          >
+            Go to Classes →
+          </button>
         </div>
 
         <div className="field">

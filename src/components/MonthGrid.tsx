@@ -15,6 +15,7 @@ interface MonthGridProps {
   year: number;
   onMonthChange: (month: number, year: number) => void;
   onSelectAssignment: (assignment: Assignment) => void;
+  onAddOnDate: (dateStr: string) => void;
 }
 
 function toISODate(year: number, month: number, day: number): string {
@@ -23,7 +24,7 @@ function toISODate(year: number, month: number, day: number): string {
   return `${year}-${mm}-${dd}`;
 }
 
-export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAssignment }: MonthGridProps) {
+export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAssignment, onAddOnDate }: MonthGridProps) {
   const today = new Date();
   const firstOfMonth = new Date(year, month, 1);
   const startOffset = firstOfMonth.getDay();
@@ -73,6 +74,20 @@ export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAss
             <div
               className={`day-cell ${cell.other ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
               key={idx}
+              role={dateStr ? 'button' : undefined}
+              tabIndex={dateStr ? 0 : undefined}
+              aria-label={dateStr ? `Add an assignment on ${dateStr}` : undefined}
+              onClick={dateStr ? () => onAddOnDate(dateStr) : undefined}
+              onKeyDown={
+                dateStr
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onAddOnDate(dateStr);
+                      }
+                    }
+                  : undefined
+              }
             >
               <div className="day-num">{cell.day}</div>
               {shown.map((a) => (
@@ -81,10 +96,14 @@ export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAss
                   key={a.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onSelectAssignment(a)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectAssignment(a);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
+                      e.stopPropagation();
                       onSelectAssignment(a);
                     }
                   }}

@@ -13,13 +13,24 @@ interface AssignmentModalProps {
   open: boolean;
   assignment?: Assignment | null;
   classes: ClassEntry[];
+  defaultDueDate?: string;
   onClose: () => void;
   onSave: (input: NewAssignmentInput) => boolean;
   onUpdate?: (id: string, input: NewAssignmentInput) => boolean;
   onDelete?: (id: string) => void;
 }
 
-const TYPE_ORDER: AssignmentType[] = ['exam', 'paper', 'reading', 'pset', 'other'];
+const TYPE_ORDER: AssignmentType[] = [
+  'exam',
+  'quiz',
+  'homework',
+  'paper',
+  'reading',
+  'pset',
+  'presentation',
+  'lab',
+  'other',
+];
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -29,6 +40,7 @@ export function AssignmentModal({
   open,
   assignment,
   classes,
+  defaultDueDate,
   onClose,
   onSave,
   onUpdate,
@@ -52,12 +64,12 @@ export function AssignmentModal({
     } else {
       setTitle('');
       setClassNameInput('');
-      setDueDate(todayISO());
+      setDueDate(defaultDueDate ?? todayISO());
       setType('exam');
     }
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, assignment?.id]);
+  }, [open, assignment?.id, defaultDueDate]);
 
   if (!open) return null;
 
