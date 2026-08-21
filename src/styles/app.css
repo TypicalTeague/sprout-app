@@ -306,7 +306,7 @@
   font-weight: 700;
   min-width: 170px;
 }
-.month-nav button {
+.month-nav-arrow {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -315,10 +315,71 @@
   color: var(--ink-soft);
   cursor: pointer;
   font-size: 14px;
+  flex-shrink: 0;
 }
-.month-nav button:hover {
+.month-nav-arrow:hover {
   background: var(--accent-bg);
   color: var(--accent-dark);
+}
+.month-label-wrap {
+  position: relative;
+  min-width: 170px;
+}
+.month-label-btn {
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.month-label-btn:hover {
+  background: var(--bg);
+}
+.month-label-btn .caret {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.month-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.month-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 41;
+  background: white;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lift);
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+}
+.month-picker-popover select,
+.month-picker-popover input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  font-size: 13.5px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--ink);
+}
+.month-picker-popover input[type='number'] {
+  width: 80px;
+}
+.today-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 30px;
 }
 .view-toggle {
   display: flex;
@@ -641,6 +702,15 @@
   color: var(--danger-text);
   font-size: 12.5px;
   margin: -4px 0 10px;
+}
+.notif-hint {
+  background: var(--accent-bg);
+  color: var(--accent-dark);
+  font-size: 12.5px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin: 10px 0 0;
+  line-height: 1.5;
 }
 .modal-actions {
   display: flex;

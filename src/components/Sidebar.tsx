@@ -11,7 +11,6 @@ type NavEntry =
 
 const NAV: NavEntry[] = [
   { key: 'calendar', icon: '📅', label: 'Calendar' },
-  { icon: '✅', label: 'Tasks', disabled: true },
   { key: 'classes', icon: '🎓', label: 'Classes' },
   { icon: '📊', label: 'Grades', disabled: true },
   { key: 'timer', icon: '⏱️', label: 'Study Timer' },
@@ -56,7 +55,7 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
       </div>
       <div className="sidebar-footer">
         <b>🌸 This is just the beginning</b>
-        Calendar, classes, and a study timer are live — tasks and grades are sprouting next.
+        Calendar, classes, and a study timer are live — grades are sprouting next.
       </div>
     </div>
   );

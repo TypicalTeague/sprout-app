@@ -14,7 +14,8 @@
     "@upstash/redis": "^1.38.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "uuid": "^14.0.1"
+    "uuid": "^14.0.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
@@ -23,6 +24,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
+    "@types/web-push": "^3.6.4",
     "@vercel/node": "^5.10.1",
     "@vitejs/plugin-react": "^6.0.4",
     "jsdom": "^30.0.1",

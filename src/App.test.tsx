@@ -25,6 +25,8 @@ function freshUserData(): UserData {
     assignments: [],
     onboardingDismissed: false,
     linkNoticeDismissed: true, // keep the link banner out of the way for UI tests
+    pushSubscription: null,
+    timeZone: 'America/New_York', // pre-set so the auto-detect effect is a no-op in most tests
     updatedAt: new Date().toISOString(),
   };
 }
@@ -246,6 +248,66 @@ describe('App', () => {
     expect(screen.getByText('Exam')).toBeInTheDocument();
     expect(screen.getByText('Reading')).toBeInTheDocument();
     expect(screen.getByText('Problem Set')).toBeInTheDocument();
+  });
+
+  it('the Tasks nav item is gone (v4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    await screen.findByText('Sprout');
+    expect(screen.queryByText('Tasks')).not.toBeInTheDocument();
+    // Grades remains as the one disabled placeholder
+    expect(screen.getByText('Grades')).toBeInTheDocument();
+  });
+
+  it('the month/year picker jumps directly to a chosen month (story 2, v4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    await screen.findByText('Sprout');
+    const monthLabelBtn = document.querySelector('.month-label-btn') as HTMLElement;
+    fireEvent.click(monthLabelBtn);
+    const monthSelect = screen.getByLabelText('Month') as HTMLSelectElement;
+    fireEvent.change(monthSelect, { target: { value: '0' } });
+    expect(monthLabelBtn.textContent).toContain('January');
+  });
+
+  it('the Today button returns to the current month after navigating away (story 2, v4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    await screen.findByText('Sprout');
+    const now = new Date();
+    fireEvent.click(screen.getByLabelText('Next month'));
+    fireEvent.click(screen.getByLabelText('Next month'));
+    fireEvent.click(document.querySelector('.today-btn') as HTMLElement);
+    const monthLabelBtn = document.querySelector('.month-label-btn') as HTMLElement;
+    expect(monthLabelBtn.textContent).toContain(String(now.getFullYear()));
+  });
+
+  it('swiping left on the calendar grid moves to the next month (story 2, v4)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    await screen.findByText('Sprout');
+    const grid = document.querySelector('.calendar-grid') as HTMLElement;
+    const monthLabelBtn = document.querySelector('.month-label-btn') as HTMLElement;
+    const before = monthLabelBtn.textContent;
+    fireEvent.touchStart(grid, { touches: [{ clientX: 300 }] });
+    fireEvent.touchEnd(grid, { changedTouches: [{ clientX: 200 }] });
+    expect(monthLabelBtn.textContent).not.toBe(before);
+  });
+
+  it('settings offers an Enable notifications action (story 12)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText('Open settings'));
+    expect(await screen.findByText('Reminders')).toBeInTheDocument();
+    expect(screen.getByText('Enable notifications')).toBeInTheDocument();
+  });
+
+  it('fails soft with a clear message when the browser has no Push support (story 12)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText('Open settings'));
+    fireEvent.click(await screen.findByText('Enable notifications'));
+    expect(await screen.findByText(/doesn't support push notifications/)).toBeInTheDocument();
   });
 
   it('Study Timer renders a countdown and toggles start/pause (story 10)', async () => {

@@ -1,7 +1,7 @@
 // Traces to spec.md stories 1-9. Wires identity resolution, server-backed
 // data, and all CRUD UI together.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './styles/tokens.css';
 import './styles/app.css';
 import { Sidebar } from './components/Sidebar';
@@ -50,6 +50,8 @@ function App() {
     deleteClass,
     dismissOnboarding,
     dismissLinkNotice,
+    setPushSubscription,
+    setTimeZone,
   } = useUserData(id);
 
   const [page, setPage] = useState<PageKey>('calendar');
@@ -61,6 +63,16 @@ function App() {
   const today = new Date();
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
+
+  // Story 12: captured invisibly, once, the first time we see a record with
+  // no timezone set yet — no UI, no prompt (constitution.md: "nothing is
+  // ever required"). Self-guarding: once set, data.timeZone is no longer
+  // null and this becomes a no-op.
+  useEffect(() => {
+    if (data && data.timeZone == null) {
+      setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    }
+  }, [data, setTimeZone]);
 
   if (!id || loading || !data) {
     return (
@@ -181,9 +193,11 @@ function App() {
         open={settingsOpen}
         name={data.name}
         privateUrl={privateUrl(id)}
+        pushSubscribed={data.pushSubscription !== null}
         onClose={() => setSettingsOpen(false)}
         onSaveName={setName}
         onGoToClasses={() => setPage('classes')}
+        onSetPushSubscription={setPushSubscription}
       />
     </div>
   );

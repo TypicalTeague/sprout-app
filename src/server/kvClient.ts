@@ -52,3 +52,19 @@ export function getKVClient(): KVClient {
   };
   return cached;
 }
+
+// v4, story 12: used only by the two cron handlers to find every user with
+// a push subscription. Read-only enumeration via Redis's KEYS command —
+// trivial cost at this app's scale (a handful of records) — deliberately
+// chosen over adding a separate "index" key that would need backfilling
+// for identities (including the real one already in production) created
+// before this feature existed. No migration, no risk to existing records.
+// See plan.md's "v4 revision note".
+export async function listUserIds(): Promise<string[]> {
+  const url = findEnv(['UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL']);
+  const token = findEnv(['UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_TOKEN']);
+  if (!url || !token) return [];
+  const redis = new Redis({ url, token });
+  const keys = await redis.keys('user:*');
+  return keys.map((key) => key.replace(/^user:/, ''));
+}

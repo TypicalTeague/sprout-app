@@ -1,30 +1,40 @@
 // Traces to spec.md story 7 (v3: links to the Classes tab, its one true
 // home — see constitution.md's "Data safety" section for why the class
-// CRUD logic itself didn't move, just this modal's UI) and story 9 (name
-// editable later, not just at onboarding), plus the constitution's
-// "Persistence & identity" private-link note.
+// CRUD logic itself didn't move, just this modal's UI), story 9 (name
+// editable later, not just at onboarding), and story 12 (v4: optional push
+// notification enable/disable), plus the constitution's "Persistence &
+// identity" private-link note.
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { PushSubscriptionData } from '../types/push';
+import { subscribeToPush, unsubscribeFromPush } from '../lib/push';
 
 interface SettingsModalProps {
   open: boolean;
   name: string | null;
   privateUrl: string;
+  pushSubscribed: boolean;
   onClose: () => void;
   onSaveName: (name: string) => void;
   onGoToClasses: () => void;
+  onSetPushSubscription: (subscription: PushSubscriptionData | null) => void;
 }
+
+type NotifStatus = 'idle' | 'working' | 'ios-hint' | 'denied' | 'unsupported' | 'error';
 
 export function SettingsModal({
   open,
   name,
   privateUrl,
+  pushSubscribed,
   onClose,
   onSaveName,
   onGoToClasses,
+  onSetPushSubscription,
 }: SettingsModalProps) {
   const [nameInput, setNameInput] = useState(name ?? '');
   const [copied, setCopied] = useState(false);
+  const [notifStatus, setNotifStatus] = useState<NotifStatus>('idle');
 
   useEffect(() => {
     if (open) setNameInput(name ?? '');
@@ -35,6 +45,29 @@ export function SettingsModal({
   const handleClose = () => {
     if (nameInput.trim() !== (name ?? '')) onSaveName(nameInput);
     onClose();
+  };
+
+  const handleEnableNotifications = async () => {
+    setNotifStatus('working');
+    const result = await subscribeToPush();
+    if (result.ok) {
+      onSetPushSubscription(result.subscription);
+      setNotifStatus('idle');
+    } else if (result.reason === 'ios-not-installed') {
+      setNotifStatus('ios-hint');
+    } else if (result.reason === 'permission-denied') {
+      setNotifStatus('denied');
+    } else if (result.reason === 'unsupported') {
+      setNotifStatus('unsupported');
+    } else {
+      setNotifStatus('error');
+    }
+  };
+
+  const handleDisableNotifications = async () => {
+    await unsubscribeFromPush();
+    onSetPushSubscription(null);
+    setNotifStatus('idle');
   };
 
   const handleCopy = async () => {
@@ -84,6 +117,42 @@ export function SettingsModal({
           >
             Go to Classes →
           </button>
+        </div>
+
+        <div className="field">
+          <label>Reminders</label>
+          <p className="sub" style={{ margin: '0 0 8px' }}>
+            Get a push notification the evening before something's due, and again the morning it's due.
+          </p>
+          {pushSubscribed ? (
+            <button className="btn-ghost" onClick={handleDisableNotifications}>
+              Turn off notifications
+            </button>
+          ) : (
+            <button
+              className="btn-primary"
+              onClick={handleEnableNotifications}
+              disabled={notifStatus === 'working'}
+            >
+              {notifStatus === 'working' ? 'Enabling…' : 'Enable notifications'}
+            </button>
+          )}
+          {notifStatus === 'ios-hint' && (
+            <p className="notif-hint">
+              On iPhone, add Sprout to your Home Screen first (Share → Add to Home Screen), then come back here to turn on notifications.
+            </p>
+          )}
+          {notifStatus === 'denied' && (
+            <p className="form-error">
+              Notifications are blocked — check your phone/browser settings to allow them for Sprout.
+            </p>
+          )}
+          {notifStatus === 'unsupported' && (
+            <p className="form-error">This browser doesn't support push notifications.</p>
+          )}
+          {notifStatus === 'error' && (
+            <p className="form-error">Something went wrong enabling notifications — try again in a bit.</p>
+          )}
         </div>
 
         <div className="field">

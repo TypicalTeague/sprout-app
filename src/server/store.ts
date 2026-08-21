@@ -21,6 +21,8 @@ export function createEmptyUserData(id: string): UserData {
     assignments: [],
     onboardingDismissed: false,
     linkNoticeDismissed: false,
+    pushSubscription: null,
+    timeZone: null,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -37,7 +39,9 @@ export async function getUserData(kv: KVClient, id: string): Promise<UserData | 
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as UserData;
-    // Defensive defaults in case of a future schema widen.
+    // Defensive defaults in case of a future schema widen — pushSubscription
+    // and timeZone (v4) default to null exactly the same way, for every
+    // record that predates them.
     return {
       id,
       name: parsed.name ?? null,
@@ -45,6 +49,8 @@ export async function getUserData(kv: KVClient, id: string): Promise<UserData | 
       assignments: Array.isArray(parsed.assignments) ? parsed.assignments : [],
       onboardingDismissed: Boolean(parsed.onboardingDismissed),
       linkNoticeDismissed: Boolean(parsed.linkNoticeDismissed),
+      pushSubscription: parsed.pushSubscription ?? null,
+      timeZone: parsed.timeZone ?? null,
       updatedAt: parsed.updatedAt ?? new Date().toISOString(),
     };
   } catch {
@@ -66,6 +72,8 @@ export async function saveUserData(
     assignments: input.assignments ?? [],
     onboardingDismissed: Boolean(input.onboardingDismissed),
     linkNoticeDismissed: Boolean(input.linkNoticeDismissed),
+    pushSubscription: input.pushSubscription ?? null,
+    timeZone: input.timeZone ?? null,
     updatedAt: new Date().toISOString(),
   };
   await kv.set(userKey(id), JSON.stringify(data));

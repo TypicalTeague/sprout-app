@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Assignment, NewAssignmentInput } from '../types/assignment';
 import type { ClassEntry, UserData } from '../types/userData';
+import type { PushSubscriptionData } from '../types/push';
 import { createEmptyUserData } from '../server/store';
 import * as api from '../lib/api';
 
@@ -59,6 +60,8 @@ export function useUserData(id: string | null) {
         assignments: next.assignments,
         onboardingDismissed: next.onboardingDismissed,
         linkNoticeDismissed: next.linkNoticeDismissed,
+        pushSubscription: next.pushSubscription,
+        timeZone: next.timeZone,
       }).catch((err) => {
         console.warn('[sprout] Failed to save changes — they may not survive a reload.', err);
       });
@@ -199,6 +202,22 @@ export function useUserData(id: string | null) {
     update((prev) => ({ ...prev, linkNoticeDismissed: true }));
   }, [update]);
 
+  // v4, story 12: same update()/persist() pattern as every other mutator —
+  // rides the existing PUT, no new API endpoint (plan.md's "v4 revision note").
+  const setPushSubscription = useCallback(
+    (subscription: PushSubscriptionData | null) => {
+      update((prev) => ({ ...prev, pushSubscription: subscription }));
+    },
+    [update],
+  );
+
+  const setTimeZone = useCallback(
+    (timeZone: string) => {
+      update((prev) => ({ ...prev, timeZone }));
+    },
+    [update],
+  );
+
   return {
     data,
     loading,
@@ -212,5 +231,7 @@ export function useUserData(id: string | null) {
     deleteClass,
     dismissOnboarding,
     dismissLinkNotice,
+    setPushSubscription,
+    setTimeZone,
   };
 }

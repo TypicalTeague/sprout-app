@@ -1,5 +1,15 @@
 {
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }]
+    }
+  ],
+  "crons": [
+    { "path": "/api/cron/evening-reminders", "schedule": "0 22 * * *" },
+    { "path": "/api/cron/morning-reminders", "schedule": "0 12 * * *" }
   ]
 }

@@ -48,6 +48,39 @@ describe('getUserData', () => {
     const result = await getUserData(kv, 'corrupt');
     expect(result).toBeNull();
   });
+
+  it('defaults pushSubscription and timeZone to null for a pre-v4 record that never had those keys (data safety)', async () => {
+    const kv = fakeKV();
+    // Simulates a real record written before v4 — no pushSubscription/timeZone
+    // key at all, not even `null`. Existing production data looks like this.
+    const preV4Record = {
+      id: 'legacy-user',
+      name: 'Julia',
+      classes: [{ id: 'c1', name: 'BIO 201' }],
+      assignments: [
+        {
+          id: 'a1',
+          title: 'Midterm',
+          classId: 'c1',
+          dueDate: '2026-09-01',
+          type: 'exam',
+          done: false,
+          createdAt: '2026-08-16T00:00:00.000Z',
+        },
+      ],
+      onboardingDismissed: true,
+      linkNoticeDismissed: true,
+      updatedAt: '2026-08-16T00:00:00.000Z',
+    };
+    await kv.set('user:legacy-user', JSON.stringify(preV4Record));
+    const result = await getUserData(kv, 'legacy-user');
+    expect(result?.pushSubscription).toBeNull();
+    expect(result?.timeZone).toBeNull();
+    // and nothing pre-existing was altered
+    expect(result?.name).toBe('Julia');
+    expect(result?.classes).toEqual(preV4Record.classes);
+    expect(result?.assignments).toEqual(preV4Record.assignments);
+  });
 });
 
 describe('saveUserData', () => {
@@ -67,6 +100,8 @@ describe('saveUserData', () => {
     ],
     onboardingDismissed: true,
     linkNoticeDismissed: false,
+    pushSubscription: null,
+    timeZone: null,
   };
 
   it('round-trips data correctly through save and get', async () => {
@@ -77,6 +112,22 @@ describe('saveUserData', () => {
     expect(fetched?.classes).toEqual(sampleInput.classes);
     expect(fetched?.assignments).toEqual(sampleInput.assignments);
     expect(fetched?.onboardingDismissed).toBe(true);
+  });
+
+  it('round-trips a push subscription and timezone (story 12)', async () => {
+    const kv = fakeKV();
+    const withPush: UserDataInput = {
+      ...sampleInput,
+      pushSubscription: {
+        endpoint: 'https://fcm.googleapis.com/fcm/send/abc123',
+        keys: { p256dh: 'p256dh-key', auth: 'auth-key' },
+      },
+      timeZone: 'America/New_York',
+    };
+    await saveUserData(kv, 'u1', withPush);
+    const fetched = await getUserData(kv, 'u1');
+    expect(fetched?.pushSubscription).toEqual(withPush.pushSubscription);
+    expect(fetched?.timeZone).toBe('America/New_York');
   });
 
   it('upserts — succeeds even for an id with no prior record', async () => {
@@ -103,5 +154,7 @@ describe('createEmptyUserData', () => {
     expect(data.assignments).toEqual([]);
     expect(data.classes).toEqual([]);
     expect(data.name).toBeNull();
+    expect(data.pushSubscription).toBeNull();
+    expect(data.timeZone).toBeNull();
   });
 });
