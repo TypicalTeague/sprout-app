@@ -1,5 +1,5 @@
-// Traces to spec.md story 10: a Pomodoro-style focus timer. Entirely
-// session-only React state — no useUserData/backend involvement at all
+// Traces to spec.md story 10: a Pomodoro-style focus timer. Session-only
+// React state for the timer itself — no useUserData/backend involvement
 // (see constitution.md's "Data safety" section and plan.md's "v3 revision
 // note" for why that's deliberate). Preferred lengths persist to
 // localStorage as a nice-to-have, guarded try/catch per the constitution's
@@ -12,11 +12,23 @@
 // visibilitychange listener forces an immediate recalculation the moment
 // the tab is foregrounded again, so the display snaps to correct instead
 // of visibly catching up.
+//
+// v5, corrected: period-end notifications are now a real, server-sent
+// push (scheduled via lib/push.ts's schedulePomodoroPush, delivered by
+// Upstash QStash) rather than a notification this tab's own JS would have
+// to trigger itself — the latter can't reliably fire while the phone is
+// locked, for the exact same reason a JS-triggered sound can't. This is
+// the one narrow exception to "no backend involvement": StudyTimer makes
+// a fire-and-forget scheduling call when notifications are enabled, but
+// still never reads or mutates her assignment/class data, and never calls
+// useUserData. The in-app chime below is unrelated and unconditional —
+// it's the separate, always-on cue for when she's actively looking at the
+// tab, per story 10's original "gentle sound and/or visual cue" ask.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PomodoroMode } from '../lib/pomodoro';
 import { advanceSession } from '../lib/pomodoro';
-import { showLocalNotification } from '../lib/push';
+import { schedulePomodoroPush } from '../lib/push';
 
 const DEFAULT_FOCUS_MIN = 25;
 const DEFAULT_BREAK_MIN = 5;
@@ -78,9 +90,13 @@ interface StudyTimerProps {
   // period-end notification never fires without her having already turned
   // notifications on, and never fires a permission prompt of its own.
   notificationsEnabled: boolean;
+  // v5: her identity, needed only to address a scheduled push at delivery
+  // time (see lib/push.ts's schedulePomodoroPush) — never used to read or
+  // write her assignment/class data.
+  id: string | null;
 }
 
-export function StudyTimer({ notificationsEnabled }: StudyTimerProps) {
+export function StudyTimer({ notificationsEnabled, id }: StudyTimerProps) {
   const initialPrefs = useRef(loadPrefs());
   const [focusMin, setFocusMin] = useState(initialPrefs.current.focusMin);
   const [breakMin, setBreakMin] = useState(initialPrefs.current.breakMin);
@@ -108,21 +124,22 @@ export function StudyTimer({ notificationsEnabled }: StudyTimerProps) {
       setCyclesCompleted(result.session.cyclesCompleted);
       playChime();
       setJustFinished(true);
-      if (notificationsEnabled && document.hidden && result.lastCompletedMode) {
-        const finishedFocus = result.lastCompletedMode === 'focus';
-        showLocalNotification(
-          finishedFocus ? 'Focus session done 🌱' : "Break's over ☕→🌱",
-          finishedFocus ? 'Nice work — take your break.' : 'Ready for another focus round?',
-        );
+      // Still running into the next period — schedule its push too, so a
+      // multi-cycle session keeps getting notified as long as the tab had
+      // at least this one moment of execution to observe the transition
+      // and schedule ahead (see the header comment above and plan.md's
+      // "v5 revision note" for the bounded nature of that guarantee).
+      if (notificationsEnabled && id) {
+        schedulePomodoroPush(id, result.session.endAt, result.session.mode);
       }
     }
-  }, [running, mode, cyclesCompleted, focusMin, breakMin, notificationsEnabled]);
+  }, [running, mode, cyclesCompleted, focusMin, breakMin, notificationsEnabled, id]);
 
   useEffect(() => {
     if (!running) return;
     tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    const intervalId = setInterval(tick, 1000);
+    return () => clearInterval(intervalId);
   }, [running, tick]);
 
   // The moment the tab is foregrounded again, recalculate immediately
@@ -153,8 +170,17 @@ export function StudyTimer({ notificationsEnabled }: StudyTimerProps) {
       endAtRef.current = null;
       setRunning(false);
     } else {
-      endAtRef.current = Date.now() + secondsLeft * 1000;
+      const endAt = Date.now() + secondsLeft * 1000;
+      endAtRef.current = endAt;
       setRunning(true);
+      // Not cancelled on Pause/Reset (see the header comment above) — a
+      // deliberate simplification. Pausing and resuming this same period
+      // schedules a second, correctly-timed push alongside the original
+      // now-stale one, so an occasional early/duplicate notification is
+      // possible after a pause; this is an accepted trade-off, not a bug.
+      if (notificationsEnabled && id) {
+        schedulePomodoroPush(id, endAt, mode);
+      }
     }
   };
 

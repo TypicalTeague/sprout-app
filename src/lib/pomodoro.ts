@@ -69,3 +69,19 @@ export function advanceSession(
     lastCompletedMode,
   };
 }
+
+export interface PomodoroPushMessage {
+  title: string;
+  body: string;
+  url: string;
+}
+
+// Shared copy for the period-end push notification — imported by both
+// api/pomodoro/notify.ts (server) and, indirectly, matches the same
+// wording used for the in-app visual state. `finishedMode` is the period
+// that just ended (what the notification is about), not the one starting.
+export function buildPomodoroPushMessage(finishedMode: PomodoroMode): PomodoroPushMessage {
+  return finishedMode === 'focus'
+    ? { title: 'Focus session done 🌱', body: 'Nice work — take your break.', url: '/' }
+    : { title: "Break's over ☕→🌱", body: 'Ready for another focus round?', url: '/' };
+}

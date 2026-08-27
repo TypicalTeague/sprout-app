@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { startSession, advanceSession } from './pomodoro';
+import { startSession, advanceSession, buildPomodoroPushMessage } from './pomodoro';
 
 const FOCUS_MIN = 25;
 const BREAK_MIN = 5;
@@ -65,5 +65,21 @@ describe('advanceSession', () => {
     const second = advanceSession(first.session, now + FOCUS_MIN * 60 * 1000, FOCUS_MIN, BREAK_MIN);
     expect(second.periodsCompleted).toBe(0);
     expect(second.session).toEqual(first.session);
+  });
+});
+
+describe('buildPomodoroPushMessage', () => {
+  it('describes a finished focus period as done, with a break-themed body', () => {
+    const message = buildPomodoroPushMessage('focus');
+    expect(message.title).toMatch(/focus/i);
+    expect(message.body).toMatch(/break/i);
+    expect(message.url).toBe('/');
+  });
+
+  it('describes a finished break as over, with a focus-themed body', () => {
+    const message = buildPomodoroPushMessage('break');
+    expect(message.title).toMatch(/break/i);
+    expect(message.body).toMatch(/focus/i);
+    expect(message.url).toBe('/');
   });
 });

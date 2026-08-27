@@ -16,7 +16,7 @@ describe('StudyTimer', () => {
   });
 
   it('renders a 25:00 countdown by default and toggles start/pause', () => {
-    render(<StudyTimer notificationsEnabled={false} />);
+    render(<StudyTimer notificationsEnabled={false} id="test-user-0000" />);
     expect(screen.getByText('25:00')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Start'));
     expect(screen.getByText('Pause')).toBeInTheDocument();
@@ -25,7 +25,7 @@ describe('StudyTimer', () => {
   });
 
   it('stays accurate after a simulated backgrounded gap — no drift (v5 bug fix)', () => {
-    render(<StudyTimer notificationsEnabled={false} />);
+    render(<StudyTimer notificationsEnabled={false} id="test-user-0000" />);
     fireEvent.click(screen.getByText('Start'));
 
     // Simulate a heavily-throttled background tab: 90 real seconds pass
@@ -43,7 +43,7 @@ describe('StudyTimer', () => {
   });
 
   it('recalculates immediately on visibilitychange, without waiting for the next tick', () => {
-    render(<StudyTimer notificationsEnabled={false} />);
+    render(<StudyTimer notificationsEnabled={false} id="test-user-0000" />);
     fireEvent.click(screen.getByText('Start'));
 
     act(() => {
@@ -58,7 +58,7 @@ describe('StudyTimer', () => {
   });
 
   it('advances mode and cycle count through a fully-elapsed period after a long gap', () => {
-    render(<StudyTimer notificationsEnabled={false} />);
+    render(<StudyTimer notificationsEnabled={false} id="test-user-0000" />);
     fireEvent.click(screen.getByText('Start'));
 
     // 25 minutes (the full focus period) plus 30 seconds into the break —
@@ -71,5 +71,55 @@ describe('StudyTimer', () => {
     expect(screen.getByText('☕ Break')).toBeInTheDocument();
     expect(screen.getByText('4:30')).toBeInTheDocument();
     expect(screen.getByText(/1 focus cycle completed/)).toBeInTheDocument();
+  });
+
+  it('schedules a real push notification on Start when notifications are enabled (v5)', () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(<StudyTimer notificationsEnabled id="test-user-0000" />);
+    const startedAt = Date.now();
+    fireEvent.click(screen.getByText('Start'));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchSpy.mock.calls[0];
+    expect(url).toBe('/api/pomodoro/schedule');
+    const body = JSON.parse(options.body);
+    expect(body.id).toBe('test-user-0000');
+    expect(body.kind).toBe('focus');
+    // ~25 minutes out, allowing a little slack for test execution time.
+    expect(body.delaySeconds).toBeGreaterThan(25 * 60 - 2);
+    expect(body.delaySeconds).toBeLessThanOrEqual(25 * 60);
+    expect(startedAt).toBeLessThanOrEqual(Date.now());
+
+    vi.unstubAllGlobals();
+  });
+
+  it('never calls the schedule endpoint when notifications are disabled', () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(<StudyTimer notificationsEnabled={false} id="test-user-0000" />);
+    fireEvent.click(screen.getByText('Start'));
+    act(() => {
+      vi.setSystemTime(Date.now() + 25 * 60 * 1000 + 1000);
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not throw and skips scheduling when id is null, even with notifications enabled', () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    expect(() => {
+      render(<StudyTimer notificationsEnabled id={null} />);
+      fireEvent.click(screen.getByText('Start'));
+    }).not.toThrow();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

@@ -1,6 +1,12 @@
 // Traces to spec.md story 12. The only place client code talks to the
-// Push/Notification APIs — SettingsModal and (v5) StudyTimer are the only
-// callers.
+// Push/Notification browser APIs (Notification/PushManager/ServiceWorker)
+// — SettingsModal is the only caller of those. StudyTimer (v5, story 10)
+// also lives here for scheduling Pomodoro period-end pushes, but it never
+// touches the Notification/Push APIs directly — see schedulePomodoroPush
+// below and plan.md's "v5 revision note" for why that has to be a
+// server-scheduled push (via Upstash QStash) rather than anything the
+// tab's own JS could trigger itself, to be reliable while her phone is
+// locked.
 
 import type { PushSubscriptionData } from '../types/push';
 
@@ -83,28 +89,31 @@ export async function unsubscribeFromPush(): Promise<void> {
   }
 }
 
-// v5, story 10: a *local* notification (shown directly by the already-
-// registered service worker), not a server-sent Web Push — no new API
-// endpoint or server round-trip for a session-only, client-side timer
-// event. Only ever checks whether permission is already granted; never
-// requests it (the caller is responsible for gating on her actual opt-in
-// choice — see StudyTimer.tsx's `notificationsEnabled` prop, since turning
-// notifications off in Settings clears the push subscription but can't
-// revoke the browser-level permission grant).
-export async function showLocalNotification(title: string, body: string): Promise<void> {
+// v5, story 10: schedules a real, server-delivered push notification for
+// when the currently-running Pomodoro period ends. This is deliberately
+// NOT a Notification/PushManager call from this tab's own JS — that JS
+// only runs if the tab has execution time, which is exactly what gets
+// suspended when the phone is locked, the same problem a client-triggered
+// sound would have. Instead this just POSTs to our own
+// /api/pomodoro/schedule, which asks Upstash QStash to call us back at
+// the right time — the actual push send happens server-side
+// (api/pomodoro/notify.ts), independent of whether her tab ever runs
+// again before then. Fire-and-forget: a failed schedule call never blocks
+// or breaks the timer (the in-app chime/visual still work regardless),
+// it just means that one period transition won't get a push.
+export async function schedulePomodoroPush(
+  id: string,
+  endAt: number,
+  kind: 'focus' | 'break',
+): Promise<void> {
   try {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification(title, {
-        body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-      });
-      return;
-    }
-    new Notification(title, { body });
+    const delaySeconds = Math.max(1, Math.round((endAt - Date.now()) / 1000));
+    await fetch('/api/pomodoro/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, kind, delaySeconds }),
+    });
   } catch (err) {
-    console.warn('[sprout] local notification failed', err);
+    console.warn('[sprout] failed to schedule a Pomodoro push notification', err);
   }
 }

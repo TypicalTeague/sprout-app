@@ -179,7 +179,7 @@ function App() {
         )}
 
         {page === 'timer' && (
-          <StudyTimer notificationsEnabled={data.pushSubscription !== null} />
+          <StudyTimer notificationsEnabled={data.pushSubscription !== null} id={id} />
         )}
       </div>
 
