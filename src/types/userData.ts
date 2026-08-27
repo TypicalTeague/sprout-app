@@ -3,9 +3,51 @@
 import type { Assignment } from './assignment';
 import type { PushSubscriptionData } from './push';
 
+// v5, additive — see constitution.md's "Data safety" section and plan.md's
+// "v5 revision note". Rides inside the `classes` array, which
+// server/store.ts already round-trips opaquely (no per-entry shape
+// validation), so no server-side change was needed to add this.
+export type ClassColor =
+  | 'lavender'
+  | 'mint'
+  | 'peach'
+  | 'sky'
+  | 'yellow'
+  | 'coral'
+  | 'amber'
+  | 'sage';
+
+export const CLASS_COLOR_ORDER: ClassColor[] = [
+  'lavender',
+  'mint',
+  'peach',
+  'sky',
+  'yellow',
+  'coral',
+  'amber',
+  'sage',
+];
+
+// `swatch` is a design-token var() for the picker's round color swatch —
+// see lib/classes.ts's classColorClassName() for the matching bg/text CSS
+// classes actually used on chips/icons.
+export const CLASS_COLOR_META: Record<ClassColor, { label: string; swatch: string }> = {
+  lavender: { label: 'Lavender', swatch: 'var(--accent)' },
+  mint: { label: 'Mint', swatch: 'var(--mint)' },
+  peach: { label: 'Peach', swatch: 'var(--peach)' },
+  sky: { label: 'Sky', swatch: 'var(--sky)' },
+  yellow: { label: 'Yellow', swatch: 'var(--yellow)' },
+  coral: { label: 'Coral', swatch: 'var(--danger)' },
+  amber: { label: 'Amber', swatch: 'var(--warn)' },
+  sage: { label: 'Sage', swatch: 'var(--safe)' },
+};
+
 export interface ClassEntry {
   id: string;
   name: string;
+  // Unset/undefined (every class created before v5) falls back to a
+  // neutral default wherever it's displayed — see lib/classes.ts.
+  color?: ClassColor | null;
 }
 
 export interface UserData {

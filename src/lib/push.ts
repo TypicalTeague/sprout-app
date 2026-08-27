@@ -1,5 +1,6 @@
 // Traces to spec.md story 12. The only place client code talks to the
-// Push/Notification APIs — SettingsModal is the only caller.
+// Push/Notification APIs — SettingsModal and (v5) StudyTimer are the only
+// callers.
 
 import type { PushSubscriptionData } from '../types/push';
 
@@ -79,5 +80,31 @@ export async function unsubscribeFromPush(): Promise<void> {
     await existing?.unsubscribe();
   } catch (err) {
     console.warn('[sprout] push unsubscribe failed', err);
+  }
+}
+
+// v5, story 10: a *local* notification (shown directly by the already-
+// registered service worker), not a server-sent Web Push — no new API
+// endpoint or server round-trip for a session-only, client-side timer
+// event. Only ever checks whether permission is already granted; never
+// requests it (the caller is responsible for gating on her actual opt-in
+// choice — see StudyTimer.tsx's `notificationsEnabled` prop, since turning
+// notifications off in Settings clears the push subscription but can't
+// revoke the browser-level permission grant).
+export async function showLocalNotification(title: string, body: string): Promise<void> {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, {
+        body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+      });
+      return;
+    }
+    new Notification(title, { body });
+  } catch (err) {
+    console.warn('[sprout] local notification failed', err);
   }
 }

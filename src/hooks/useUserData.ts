@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Assignment, NewAssignmentInput } from '../types/assignment';
-import type { ClassEntry, UserData } from '../types/userData';
+import type { ClassColor, ClassEntry, UserData } from '../types/userData';
 import type { PushSubscriptionData } from '../types/push';
 import { createEmptyUserData } from '../server/store';
 import * as api from '../lib/api';
@@ -194,6 +194,19 @@ export function useUserData(id: string | null) {
     [update],
   );
 
+  // v5, story 7: same update()/persist() pattern as every other mutator —
+  // no server-side change needed, `color` just rides along inside the
+  // existing `classes` array on the next PUT.
+  const setClassColor = useCallback(
+    (classId: string, color: ClassColor | null) => {
+      update((prev) => ({
+        ...prev,
+        classes: prev.classes.map((c) => (c.id === classId ? { ...c, color } : c)),
+      }));
+    },
+    [update],
+  );
+
   const dismissOnboarding = useCallback(() => {
     update((prev) => ({ ...prev, onboardingDismissed: true }));
   }, [update]);
@@ -229,6 +242,7 @@ export function useUserData(id: string | null) {
     addClass,
     renameClass,
     deleteClass,
+    setClassColor,
     dismissOnboarding,
     dismissLinkNotice,
     setPushSubscription,

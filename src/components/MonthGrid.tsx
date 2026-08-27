@@ -5,6 +5,8 @@
 import { useRef, useState } from 'react';
 import type { Assignment } from '../types/assignment';
 import { ASSIGNMENT_TYPE_META } from '../types/assignment';
+import type { ClassEntry } from '../types/userData';
+import { classColorClassName } from '../lib/classes';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = [
@@ -14,6 +16,7 @@ const MONTH_NAMES = [
 
 interface MonthGridProps {
   assignments: Assignment[];
+  classes: ClassEntry[];
   month: number; // 0-11
   year: number;
   onMonthChange: (month: number, year: number) => void;
@@ -29,7 +32,7 @@ function toISODate(year: number, month: number, day: number): string {
 
 const SWIPE_THRESHOLD_PX = 50;
 
-export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAssignment, onAddOnDate }: MonthGridProps) {
+export function MonthGrid({ assignments, classes, month, year, onMonthChange, onSelectAssignment, onAddOnDate }: MonthGridProps) {
   const today = new Date();
   const firstOfMonth = new Date(year, month, 1);
   const startOffset = firstOfMonth.getDay();
@@ -134,7 +137,11 @@ export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAss
             month === today.getMonth() &&
             cell.day === today.getDate();
           const dateStr = !cell.other ? toISODate(year, month, cell.day) : null;
-          const dayAssignments = dateStr ? assignments.filter((a) => a.dueDate === dateStr) : [];
+          // v5: completed assignments are archived — they no longer show
+          // up in the live Month grid (see plan.md's "v5 revision note").
+          const dayAssignments = dateStr
+            ? assignments.filter((a) => !a.done && a.dueDate === dateStr)
+            : [];
           const shown = dayAssignments.slice(0, 2);
           const extra = dayAssignments.length - shown.length;
 
@@ -160,7 +167,7 @@ export function MonthGrid({ assignments, month, year, onMonthChange, onSelectAss
               <div className="day-num">{cell.day}</div>
               {shown.map((a) => (
                 <div
-                  className={`day-chip chip-${a.type}`}
+                  className={`day-chip ${classColorClassName(classes, a.classId)}`}
                   key={a.id}
                   role="button"
                   tabIndex={0}

@@ -4,7 +4,7 @@ import type { Assignment } from '../types/assignment';
 import { ASSIGNMENT_TYPE_META } from '../types/assignment';
 import type { ClassEntry } from '../types/userData';
 import { getUrgencyBucket, getUrgencyLabel, getAgendaGroupLabel } from '../lib/urgency';
-import { resolveClassName } from '../lib/classes';
+import { resolveClassName, classColorClassName } from '../lib/classes';
 import { EmptyState } from './EmptyState';
 
 interface AgendaListProps {
@@ -12,14 +12,38 @@ interface AgendaListProps {
   classes: ClassEntry[];
   onToggleComplete: (id: string) => void;
   onSelectAssignment: (assignment: Assignment) => void;
+  onOpenArchive: () => void;
 }
 
-export function AgendaList({ assignments, classes, onToggleComplete, onSelectAssignment }: AgendaListProps) {
-  if (assignments.length === 0) {
-    return <EmptyState emoji="🌤️" message="Nothing on the horizon — enjoy the calm!" />;
+export function AgendaList({
+  assignments,
+  classes,
+  onToggleComplete,
+  onSelectAssignment,
+  onOpenArchive,
+}: AgendaListProps) {
+  // v5: completed assignments are archived — they disappear from the live
+  // Agenda entirely (see plan.md's "v5 revision note"); the "Completed"
+  // link below is the way back to them.
+  const active = assignments.filter((a) => !a.done);
+  const archivedCount = assignments.length - active.length;
+
+  const archiveLink = archivedCount > 0 && (
+    <button className="btn-ghost btn-small agenda-archive-link" onClick={onOpenArchive}>
+      Completed ({archivedCount}) →
+    </button>
+  );
+
+  if (active.length === 0) {
+    return (
+      <div className="agenda active">
+        {archiveLink}
+        <EmptyState emoji="🌤️" message="Nothing on the horizon — enjoy the calm!" />
+      </div>
+    );
   }
 
-  const sorted = [...assignments].sort((a, b) =>
+  const sorted = [...active].sort((a, b) =>
     a.dueDate === b.dueDate ? a.createdAt.localeCompare(b.createdAt) : a.dueDate.localeCompare(b.dueDate),
   );
 
@@ -32,6 +56,7 @@ export function AgendaList({ assignments, classes, onToggleComplete, onSelectAss
 
   return (
     <div className="agenda active">
+      {archiveLink}
       {Array.from(groups.entries()).map(([dateStr, items]) => {
         const bucket = getUrgencyBucket(dateStr);
         const isTodayLabel = bucket === 'overdue' || bucket === 'today';
@@ -44,7 +69,7 @@ export function AgendaList({ assignments, classes, onToggleComplete, onSelectAss
               {items.map((a) => {
                 const meta = ASSIGNMENT_TYPE_META[a.type];
                 return (
-                  <div className={`agenda-item ${a.done ? 'done' : ''}`} key={a.id}>
+                  <div className="agenda-item" key={a.id}>
                     <div
                       className="agenda-check"
                       role="checkbox"
@@ -59,7 +84,7 @@ export function AgendaList({ assignments, classes, onToggleComplete, onSelectAss
                         }
                       }}
                     />
-                    <div className={`a-icon type-bg-${a.type}`}>{meta.icon}</div>
+                    <div className={`a-icon ${classColorClassName(classes, a.classId)}`}>{meta.icon}</div>
                     <div
                       className="a-body"
                       role="button"

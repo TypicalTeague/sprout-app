@@ -158,7 +158,7 @@ describe('App', () => {
     expect(screen.queryByText('Delete me')).not.toBeInTheDocument();
   });
 
-  it('marks an assignment complete via the agenda checkbox', async () => {
+  it('marks an assignment complete, archiving it out of Agenda, then restores it (story 5/13, v5)', async () => {
     const withAssignment: UserData = {
       ...readyUserData(),
       assignments: [
@@ -178,7 +178,21 @@ describe('App', () => {
     fireEvent.click(await screen.findByText('Agenda'));
     const check = screen.getByLabelText('Mark "Finish reading" complete');
     fireEvent.click(check);
-    expect(screen.getByLabelText('Mark "Finish reading" incomplete')).toBeInTheDocument();
+
+    // gone from the live Agenda entirely, not just struck-through
+    expect(screen.queryByText('Finish reading')).not.toBeInTheDocument();
+    expect(screen.getByText('Completed (1) →')).toBeInTheDocument();
+
+    // reachable from the Archive, with a way back
+    fireEvent.click(screen.getByText('Completed (1) →'));
+    expect(await screen.findByText('Finish reading')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('↺ Restore'));
+    expect(screen.queryByText('Finish reading')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Calendar'));
+    fireEvent.click(screen.getByText('Agenda'));
+    const agenda = document.querySelector('.agenda') as HTMLElement;
+    expect(await within(agenda).findByText('Finish reading')).toBeInTheDocument();
   });
 
   it('adds, renames, and deletes a class from the Classes tab (story 7)', async () => {
@@ -240,14 +254,23 @@ describe('App', () => {
     vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
     render(<App />);
     fireEvent.click(await screen.findByText('＋ Add assignment'));
-    expect(await screen.findByText('Quiz')).toBeInTheDocument();
-    expect(screen.getByText('Homework / Assignment')).toBeInTheDocument();
-    expect(screen.getByText('Presentation')).toBeInTheDocument();
-    expect(screen.getByText('Lab')).toBeInTheDocument();
-    // existing types are still present, unrenamed at the value level
-    expect(screen.getByText('Exam')).toBeInTheDocument();
-    expect(screen.getByText('Reading')).toBeInTheDocument();
-    expect(screen.getByText('Problem Set')).toBeInTheDocument();
+    await screen.findByText('Add an assignment');
+    // Type options render as "<icon> <label>" (v5's icon+label legend
+    // shares that same shape), so scope to just the type picker and check
+    // substrings rather than exact text to avoid ambiguity with the
+    // Month-view legend underneath.
+    const optionTexts = Array.from(document.querySelectorAll('.type-opt')).map((el) => el.textContent ?? '');
+    for (const label of [
+      'Quiz',
+      'Homework / Assignment',
+      'Presentation',
+      'Lab',
+      'Exam',
+      'Reading',
+      'Problem Set',
+    ]) {
+      expect(optionTexts.some((t) => t.includes(label))).toBe(true);
+    }
   });
 
   it('the Tasks nav item is gone (v4)', async () => {
@@ -308,6 +331,49 @@ describe('App', () => {
     fireEvent.click(await screen.findByLabelText('Open settings'));
     fireEvent.click(await screen.findByText('Enable notifications'));
     expect(await screen.findByText(/doesn't support push notifications/)).toBeInTheDocument();
+  });
+
+  it('the Archive nav item is reachable and shows an empty state with nothing completed (story 13, v5)', async () => {
+    vi.mocked(api.fetchUserData).mockResolvedValue(readyUserData());
+    render(<App />);
+    fireEvent.click(await screen.findByText('Archive'));
+    expect(await screen.findByText('Everything you finish lands here.')).toBeInTheDocument();
+    expect(screen.getByText(/Nothing archived yet/)).toBeInTheDocument();
+  });
+
+  it('assigning a class a preset color reflects on its Month chip and Agenda icon (story 7, v5)', async () => {
+    const withAssignment: UserData = {
+      ...readyUserData(),
+      classes: [{ id: 'c1', name: 'BIO 201' }],
+      assignments: [
+        {
+          id: 'a1',
+          title: 'Lab report',
+          classId: 'c1',
+          dueDate: new Date().toISOString().slice(0, 10),
+          type: 'lab',
+          done: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    };
+    vi.mocked(api.fetchUserData).mockResolvedValue(withAssignment);
+    render(<App />);
+
+    // Before choosing a color, the chip falls back to the neutral default.
+    await screen.findByText('Sprout');
+    expect(document.querySelector('.day-chip.class-color-default')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Classes'));
+    await screen.findByText('BIO 201');
+    fireEvent.click(screen.getByLabelText("Set BIO 201's color to Sky"));
+
+    fireEvent.click(screen.getByText('Calendar'));
+    expect(await screen.findByText('Sprout')).toBeInTheDocument();
+    expect(document.querySelector('.day-chip.class-color-sky')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Agenda'));
+    expect(document.querySelector('.a-icon.class-color-sky')).toBeInTheDocument();
   });
 
   it('Study Timer renders a countdown and toggles start/pause (story 10)', async () => {

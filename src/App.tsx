@@ -17,23 +17,23 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { SettingsModal } from './components/SettingsModal';
 import { LinkSaveBanner } from './components/LinkSaveBanner';
 import { ClassesPage } from './components/ClassesPage';
+import { ArchivePage } from './components/ArchivePage';
 import { StudyTimer } from './components/StudyTimer';
 import { useIdentity } from './hooks/useIdentity';
 import { useUserData } from './hooks/useUserData';
 import type { Assignment } from './types/assignment';
+import { ASSIGNMENT_TYPE_META } from './types/assignment';
 import { privateUrl } from './lib/identity';
 
-const TYPE_LEGEND = [
-  { label: 'Exam', color: 'var(--danger)' },
-  { label: 'Quiz', color: 'var(--warn)' },
-  { label: 'Homework / Assignment', color: 'var(--peach)' },
-  { label: 'Paper / Project', color: 'var(--accent)' },
-  { label: 'Reading', color: 'var(--sky)' },
-  { label: 'Problem Set', color: 'var(--mint)' },
-  { label: 'Presentation', color: 'var(--safe)' },
-  { label: 'Lab', color: 'var(--yellow)' },
-  { label: 'Other', color: 'var(--ink-faint)' },
-];
+// v5: chip/icon backgrounds now reflect class color, not type (see story
+// 7) — this legend switches from a color-dot-per-type to an icon+label
+// legend, derived directly from ASSIGNMENT_TYPE_META so it can't drift
+// out of sync with the actual type list.
+const TYPE_LEGEND = Object.entries(ASSIGNMENT_TYPE_META).map(([key, meta]) => ({
+  key,
+  icon: meta.icon,
+  label: meta.label,
+}));
 
 function App() {
   const { id } = useIdentity();
@@ -48,6 +48,7 @@ function App() {
     addClass,
     renameClass,
     deleteClass,
+    setClassColor,
     dismissOnboarding,
     dismissLinkNotice,
     setPushSubscription,
@@ -85,6 +86,7 @@ function App() {
   const isFreshIdentity =
     !data.name && data.classes.length === 0 && data.assignments.length === 0;
   const showOnboarding = isFreshIdentity && !data.onboardingDismissed;
+  const archivedCount = data.assignments.filter((a) => a.done).length;
 
   const openAddModal = (dateStr?: string) => {
     setEditingAssignment(null);
@@ -99,7 +101,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar page={page} onNavigate={setPage} />
+      <Sidebar page={page} onNavigate={setPage} archivedCount={archivedCount} />
       <div className="main">
         <Topbar
           name={data.name}
@@ -123,9 +125,8 @@ function App() {
               {view === 'month' && (
                 <div className="legend">
                   {TYPE_LEGEND.map((item) => (
-                    <div className="legend-item" key={item.label}>
-                      <span className="legend-dot" style={{ background: item.color }} />
-                      {item.label}
+                    <div className="legend-item" key={item.key}>
+                      {item.icon} {item.label}
                     </div>
                   ))}
                 </div>
@@ -134,6 +135,7 @@ function App() {
               {view === 'month' ? (
                 <MonthGrid
                   assignments={data.assignments}
+                  classes={data.classes}
                   month={month}
                   year={year}
                   onMonthChange={(m, y) => {
@@ -149,6 +151,7 @@ function App() {
                   classes={data.classes}
                   onToggleComplete={toggleComplete}
                   onSelectAssignment={openEditModal}
+                  onOpenArchive={() => setPage('archive')}
                 />
               )}
             </div>
@@ -162,10 +165,22 @@ function App() {
             onAddClass={addClass}
             onRenameClass={renameClass}
             onDeleteClass={deleteClass}
+            onSetClassColor={setClassColor}
           />
         )}
 
-        {page === 'timer' && <StudyTimer />}
+        {page === 'archive' && (
+          <ArchivePage
+            assignments={data.assignments}
+            classes={data.classes}
+            onRestore={toggleComplete}
+            onSelectAssignment={openEditModal}
+          />
+        )}
+
+        {page === 'timer' && (
+          <StudyTimer notificationsEnabled={data.pushSubscription !== null} />
+        )}
       </div>
 
       <AssignmentModal

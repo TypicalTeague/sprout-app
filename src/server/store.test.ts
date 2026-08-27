@@ -148,6 +148,44 @@ describe('saveUserData', () => {
   });
 });
 
+describe('ClassEntry.color (v5)', () => {
+  it('round-trips a class with a color set, untouched', async () => {
+    const kv = fakeKV();
+    const input: UserDataInput = {
+      name: null,
+      classes: [{ id: 'c1', name: 'BIO 201', color: 'mint' }],
+      assignments: [],
+      onboardingDismissed: false,
+      linkNoticeDismissed: false,
+      pushSubscription: null,
+      timeZone: null,
+    };
+    await saveUserData(kv, 'u1', input);
+    const fetched = await getUserData(kv, 'u1');
+    expect(fetched?.classes).toEqual([{ id: 'c1', name: 'BIO 201', color: 'mint' }]);
+  });
+
+  it('does not break on a legacy class entry with no color key at all (data safety)', async () => {
+    const kv = fakeKV();
+    // Simulates a real pre-v5 stored record — classes never had a `color`
+    // key at all.
+    const preV5Record = {
+      id: 'legacy-user',
+      name: 'Julia',
+      classes: [{ id: 'c1', name: 'BIO 201' }],
+      assignments: [],
+      onboardingDismissed: true,
+      linkNoticeDismissed: true,
+      pushSubscription: null,
+      timeZone: null,
+      updatedAt: '2026-08-16T00:00:00.000Z',
+    };
+    await kv.set('user:legacy-user', JSON.stringify(preV5Record));
+    const result = await getUserData(kv, 'legacy-user');
+    expect(result?.classes).toEqual([{ id: 'c1', name: 'BIO 201' }]);
+  });
+});
+
 describe('createEmptyUserData', () => {
   it('produces an empty, non-seeded record', () => {
     const data = createEmptyUserData('x');

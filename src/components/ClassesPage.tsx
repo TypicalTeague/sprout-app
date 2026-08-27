@@ -6,7 +6,8 @@
 
 import { useState } from 'react';
 import type { Assignment } from '../types/assignment';
-import type { ClassEntry } from '../types/userData';
+import type { ClassColor, ClassEntry } from '../types/userData';
+import { CLASS_COLOR_META, CLASS_COLOR_ORDER } from '../types/userData';
 import { ConfirmButton } from './ConfirmButton';
 
 interface ClassesPageProps {
@@ -15,6 +16,7 @@ interface ClassesPageProps {
   onAddClass: (name: string) => boolean;
   onRenameClass: (id: string, name: string) => boolean;
   onDeleteClass: (id: string) => void;
+  onSetClassColor: (id: string, color: ClassColor | null) => void;
 }
 
 export function ClassesPage({
@@ -23,6 +25,7 @@ export function ClassesPage({
   onAddClass,
   onRenameClass,
   onDeleteClass,
+  onSetClassColor,
 }: ClassesPageProps) {
   const [newClass, setNewClass] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -67,32 +70,47 @@ export function ClassesPage({
           const count = countFor(c.id);
           return (
             <div className="class-row" key={c.id}>
-              {editingId === c.id ? (
-                <input
-                  type="text"
-                  autoFocus
-                  value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  onBlur={commitEditing}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitEditing();
-                    if (e.key === 'Escape') setEditingId(null);
-                  }}
-                />
-              ) : (
-                <span className="class-name" onClick={() => startEditing(c)}>
-                  {c.name}
+              <div className="class-row-top">
+                {editingId === c.id ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    onBlur={commitEditing}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitEditing();
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                  />
+                ) : (
+                  <span className="class-name" onClick={() => startEditing(c)}>
+                    {c.name}
+                  </span>
+                )}
+                <span className="class-count-badge">
+                  {count} {count === 1 ? 'assignment' : 'assignments'}
                 </span>
-              )}
-              <span className="class-count-badge">
-                {count} {count === 1 ? 'assignment' : 'assignments'}
-              </span>
-              <ConfirmButton
-                className="btn-ghost btn-danger btn-small"
-                label="Delete"
-                confirmLabel="Confirm?"
-                onConfirm={() => onDeleteClass(c.id)}
-              />
+                <ConfirmButton
+                  className="btn-ghost btn-danger btn-small"
+                  label="Delete"
+                  confirmLabel="Confirm?"
+                  onConfirm={() => onDeleteClass(c.id)}
+                />
+              </div>
+              <div className="color-swatch-row">
+                {CLASS_COLOR_ORDER.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`color-swatch ${c.color === color ? 'selected' : ''}`}
+                    style={{ background: CLASS_COLOR_META[color].swatch }}
+                    aria-label={`Set ${c.name}'s color to ${CLASS_COLOR_META[color].label}`}
+                    aria-pressed={c.color === color}
+                    onClick={() => onSetClassColor(c.id, c.color === color ? null : color)}
+                  />
+                ))}
+              </div>
             </div>
           );
         })}

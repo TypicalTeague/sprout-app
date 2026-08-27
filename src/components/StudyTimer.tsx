@@ -5,14 +5,22 @@
 // localStorage as a nice-to-have, guarded try/catch per the constitution's
 // fail-soft principle — this is exactly the "genuinely ephemeral UI state"
 // localStorage is still allowed for.
+//
+// v5: the countdown is driven by real clock timestamps (lib/pomodoro.ts),
+// not a decrementing tick counter, so it can't drift or stall when the tab
+// is backgrounded/throttled — see plan.md's "v5 revision note". A
+// visibilitychange listener forces an immediate recalculation the moment
+// the tab is foregrounded again, so the display snaps to correct instead
+// of visibly catching up.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { PomodoroMode } from '../lib/pomodoro';
+import { advanceSession } from '../lib/pomodoro';
+import { showLocalNotification } from '../lib/push';
 
 const DEFAULT_FOCUS_MIN = 25;
 const DEFAULT_BREAK_MIN = 5;
 const PREFS_KEY = 'sprout_timer_prefs';
-
-type Mode = 'focus' | 'break';
 
 function loadPrefs(): { focusMin: number; breakMin: number } {
   try {
@@ -64,48 +72,94 @@ function formatTime(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function StudyTimer() {
+interface StudyTimerProps {
+  // v5: her existing opt-in from Settings (story 12) — StudyTimer never
+  // touches useUserData itself, this is a read-only flag handed down so a
+  // period-end notification never fires without her having already turned
+  // notifications on, and never fires a permission prompt of its own.
+  notificationsEnabled: boolean;
+}
+
+export function StudyTimer({ notificationsEnabled }: StudyTimerProps) {
   const initialPrefs = useRef(loadPrefs());
   const [focusMin, setFocusMin] = useState(initialPrefs.current.focusMin);
   const [breakMin, setBreakMin] = useState(initialPrefs.current.breakMin);
-  const [mode, setMode] = useState<Mode>('focus');
+  const [mode, setMode] = useState<PomodoroMode>('focus');
   const [secondsLeft, setSecondsLeft] = useState(initialPrefs.current.focusMin * 60);
   const [running, setRunning] = useState(false);
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
   const [justFinished, setJustFinished] = useState(false);
 
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setSecondsLeft((s) => Math.max(0, s - 1));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [running]);
+  // Epoch ms the current running period ends at — the actual source of
+  // truth while running; null while paused/not started. Recomputed against
+  // the real clock on every tick, never trusted as an incrementing counter,
+  // which is what let the old implementation drift/stall on a
+  // backgrounded tab (v5 bug fix — see plan.md's "v5 revision note").
+  const endAtRef = useRef<number | null>(null);
+
+  const tick = useCallback(() => {
+    if (!running || endAtRef.current == null) return;
+    const now = Date.now();
+    const result = advanceSession({ mode, endAt: endAtRef.current, cyclesCompleted }, now, focusMin, breakMin);
+    endAtRef.current = result.session.endAt;
+    setSecondsLeft(Math.round(result.remainingMs / 1000));
+    if (result.periodsCompleted > 0) {
+      setMode(result.session.mode);
+      setCyclesCompleted(result.session.cyclesCompleted);
+      playChime();
+      setJustFinished(true);
+      if (notificationsEnabled && document.hidden && result.lastCompletedMode) {
+        const finishedFocus = result.lastCompletedMode === 'focus';
+        showLocalNotification(
+          finishedFocus ? 'Focus session done 🌱' : "Break's over ☕→🌱",
+          finishedFocus ? 'Nice work — take your break.' : 'Ready for another focus round?',
+        );
+      }
+    }
+  }, [running, mode, cyclesCompleted, focusMin, breakMin, notificationsEnabled]);
 
   useEffect(() => {
-    if (secondsLeft > 0) return;
-    setRunning(false);
-    playChime();
-    setJustFinished(true);
+    if (!running) return;
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [running, tick]);
+
+  // The moment the tab is foregrounded again, recalculate immediately
+  // instead of waiting for the next 1s tick — this is what makes the
+  // display snap to correct rather than visibly counting up to catch up.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [tick]);
+
+  useEffect(() => {
+    if (!justFinished) return;
     const t = setTimeout(() => setJustFinished(false), 1500);
-    if (mode === 'focus') {
-      setCyclesCompleted((c) => c + 1);
-      setMode('break');
-      setSecondsLeft(breakMin * 60);
-    } else {
-      setMode('focus');
-      setSecondsLeft(focusMin * 60);
-    }
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft]);
+  }, [justFinished]);
 
   const totalSeconds = (mode === 'focus' ? focusMin : breakMin) * 60;
   const progress = totalSeconds > 0 ? 1 - secondsLeft / totalSeconds : 0;
 
-  const toggleRunning = () => setRunning((r) => !r);
+  const toggleRunning = () => {
+    if (running) {
+      if (endAtRef.current != null) {
+        setSecondsLeft(Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000)));
+      }
+      endAtRef.current = null;
+      setRunning(false);
+    } else {
+      endAtRef.current = Date.now() + secondsLeft * 1000;
+      setRunning(true);
+    }
+  };
 
   const reset = () => {
+    endAtRef.current = null;
     setRunning(false);
     setSecondsLeft((mode === 'focus' ? focusMin : breakMin) * 60);
   };

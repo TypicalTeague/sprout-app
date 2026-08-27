@@ -3,7 +3,7 @@
 // visual placeholders; Study Groups is not being built — see plan.md's
 // "v3 revision note").
 
-export type PageKey = 'calendar' | 'classes' | 'timer';
+export type PageKey = 'calendar' | 'classes' | 'timer' | 'archive';
 
 type NavEntry =
   | { key: PageKey; icon: string; label: string; disabled?: false }
@@ -12,6 +12,7 @@ type NavEntry =
 const NAV: NavEntry[] = [
   { key: 'calendar', icon: '📅', label: 'Calendar' },
   { key: 'classes', icon: '🎓', label: 'Classes' },
+  { key: 'archive', icon: '🗄️', label: 'Archive' },
   { icon: '📊', label: 'Grades', disabled: true },
   { key: 'timer', icon: '⏱️', label: 'Study Timer' },
 ];
@@ -19,9 +20,10 @@ const NAV: NavEntry[] = [
 interface SidebarProps {
   page: PageKey;
   onNavigate: (page: PageKey) => void;
+  archivedCount: number;
 }
 
-export function Sidebar({ page, onNavigate }: SidebarProps) {
+export function Sidebar({ page, onNavigate, archivedCount }: SidebarProps) {
   return (
     <div className="sidebar">
       <div className="brand">
@@ -49,6 +51,9 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
               }}
             >
               <span className="icon">{item.icon}</span> {item.label}
+              {item.key === 'archive' && archivedCount > 0 && (
+                <span className="nav-badge">{archivedCount}</span>
+              )}
             </div>
           ),
         )}
