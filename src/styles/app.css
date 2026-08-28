@@ -888,6 +888,10 @@
   color: var(--ink);
   line-height: 1;
 }
+.skip-break-btn {
+  margin-top: -4px;
+  color: var(--ink-soft);
+}
 .timer-progress-track {
   width: 240px;
   height: 8px;

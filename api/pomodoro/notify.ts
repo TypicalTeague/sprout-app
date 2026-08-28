@@ -32,11 +32,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  console.log('[sprout] /api/pomodoro/notify invoked', { hasSignatureHeader: 'upstash-signature' in req.headers });
+
   const rawBody = await readRawBody(req);
   const signatureHeader = req.headers['upstash-signature'];
   const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
   const valid = await verifyQstashSignature(signature, rawBody);
   if (!valid) {
+    // verifyQstashSignature() already logs the specific reason (no header,
+    // no signing keys configured, or a genuine verify() failure) — this is
+    // just the HTTP-level consequence. A failed verification here drops
+    // the request with a 401 and nothing else happens; if pushes stop
+    // arriving, check for this specifically in the logs above.
+    console.warn('[sprout] /api/pomodoro/notify: signature verification failed, dropping request');
     res.status(401).json({ error: 'invalid_signature' });
     return;
   }
@@ -54,6 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: 'invalid_body' });
     return;
   }
+  console.log('[sprout] /api/pomodoro/notify: verified, payload =', { id, kind });
 
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -70,6 +79,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // She's since turned notifications off, or the identity is unknown —
     // nothing to do, not an error (this is expected whenever she disables
     // notifications between scheduling and delivery).
+    console.log('[sprout] /api/pomodoro/notify: no push subscription on record, nothing to send', {
+      id,
+      foundRecord: data != null,
+    });
     res.status(200).json({ ok: true, sent: false });
     return;
   }

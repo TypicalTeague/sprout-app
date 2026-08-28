@@ -28,13 +28,22 @@ export async function scheduleDelayedCall(
   notBeforeSeconds: number,
 ): Promise<SchedulePushResult> {
   const token = process.env.QSTASH_TOKEN;
-  if (!token) return { ok: false, reason: 'not_configured' };
+  if (!token) {
+    console.warn('[sprout] QStash schedule skipped: QSTASH_TOKEN not configured');
+    return { ok: false, reason: 'not_configured' };
+  }
   try {
     const client = new Client({ token });
-    await client.publishJSON({ url: targetUrl, body, notBefore: notBeforeSeconds });
+    const result = await client.publishJSON({ url: targetUrl, body, notBefore: notBeforeSeconds });
+    console.log('[sprout] QStash message scheduled', {
+      messageId: (result as { messageId?: string }).messageId,
+      targetUrl,
+      notBeforeSeconds,
+      secondsFromNow: notBeforeSeconds - Math.floor(Date.now() / 1000),
+    });
     return { ok: true };
   } catch (err) {
-    console.warn('[sprout] QStash schedule failed', err);
+    console.warn('[sprout] QStash schedule failed', { targetUrl, notBeforeSeconds, err });
     return { ok: false, reason: 'error' };
   }
 }
@@ -45,13 +54,26 @@ export async function verifyQstashSignature(
 ): Promise<boolean> {
   const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
   const nextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
-  if (!signature || !currentSigningKey || !nextSigningKey) return false;
+  if (!signature) {
+    console.warn('[sprout] QStash signature verification skipped: no upstash-signature header on request');
+    return false;
+  }
+  if (!currentSigningKey || !nextSigningKey) {
+    console.warn('[sprout] QStash signature verification skipped: signing keys not configured');
+    return false;
+  }
   try {
     const receiver = new Receiver({ currentSigningKey, nextSigningKey });
-    return await receiver.verify({ signature, body: rawBody });
-  } catch {
+    const valid = await receiver.verify({ signature, body: rawBody });
+    console.log('[sprout] QStash signature verify() ->', valid);
+    return valid;
+  } catch (err) {
     // verify() throws SignatureError on a bad/forged signature — that's
-    // exactly the "reject" case, not a bug to surface.
+    // exactly the "reject" case, not a bug, but still worth logging so a
+    // *legitimate* signature that's failing for some other reason (e.g.
+    // signing keys rotated/mismatched) doesn't look identical to a genuine
+    // forgery attempt in the logs.
+    console.warn('[sprout] QStash signature verify() threw', err);
     return false;
   }
 }

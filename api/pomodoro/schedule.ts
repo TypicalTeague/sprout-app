@@ -40,12 +40,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     !Number.isFinite(delaySeconds) ||
     delaySeconds <= 0
   ) {
+    console.warn('[sprout] /api/pomodoro/schedule: rejected invalid body', { id, kind, delaySeconds });
     res.status(400).json({ error: 'invalid_body' });
     return;
   }
 
   const clampedDelay = Math.min(delaySeconds, MAX_DELAY_SECONDS);
   const notBeforeSeconds = Math.floor(Date.now() / 1000) + Math.round(clampedDelay);
+  console.log('[sprout] /api/pomodoro/schedule: scheduling', { id, kind, clampedDelay, notBeforeSeconds });
   const result = await scheduleDelayedCall(notifyUrl(), { id, kind }, notBeforeSeconds);
   res.status(200).json(result);
 }

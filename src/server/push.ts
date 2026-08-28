@@ -62,8 +62,22 @@ export async function sendAndClearIfExpired(
   vapid: VapidConfig,
 ): Promise<SendResult> {
   if (!data.pushSubscription) return { sent: false, cleared: false };
+
+  const endpointHost = safeHost(data.pushSubscription.endpoint);
   const result = await sendPushNotification(data.pushSubscription, message, vapid);
-  if (result.ok) return { sent: true, cleared: false };
+  if (result.ok) {
+    console.log('[sprout] push sent', { id, endpointHost });
+    return { sent: true, cleared: false };
+  }
+
+  // Log the actual error detail — web-push surfaces the push service's
+  // real rejection here (statusCode + body), which is what makes a VAPID
+  // key mismatch (401/403, body mentioning VAPID) distinguishable from an
+  // expired subscription (404/410) or a transient network issue in the
+  // logs, rather than all three looking like the same opaque failure.
+  const errorDetail = describeWebPushError(result.error);
+  console.warn('[sprout] push send failed', { id, endpointHost, expired: result.expired, errorDetail });
+
   if (!result.expired) return { sent: false, cleared: false };
 
   await saveUserData(kv, id, {
@@ -75,5 +89,19 @@ export async function sendAndClearIfExpired(
     pushSubscription: null,
     timeZone: data.timeZone,
   });
+  console.log('[sprout] cleared expired push subscription', { id });
   return { sent: false, cleared: true };
+}
+
+function safeHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return 'invalid-endpoint';
+  }
+}
+
+function describeWebPushError(error: unknown): { statusCode?: number; body?: string; message?: string } {
+  const err = error as { statusCode?: number; body?: string; message?: string } | undefined;
+  return { statusCode: err?.statusCode, body: err?.body, message: err?.message ?? String(error) };
 }

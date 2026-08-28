@@ -17,10 +17,10 @@ interface SettingsModalProps {
   onClose: () => void;
   onSaveName: (name: string) => void;
   onGoToClasses: () => void;
-  onSetPushSubscription: (subscription: PushSubscriptionData | null) => void;
+  onSetPushSubscription: (subscription: PushSubscriptionData | null) => Promise<boolean>;
 }
 
-type NotifStatus = 'idle' | 'working' | 'ios-hint' | 'denied' | 'unsupported' | 'error';
+type NotifStatus = 'idle' | 'working' | 'ios-hint' | 'denied' | 'unsupported' | 'error' | 'save-failed';
 
 export function SettingsModal({
   open,
@@ -50,9 +50,23 @@ export function SettingsModal({
   const handleEnableNotifications = async () => {
     setNotifStatus('working');
     const result = await subscribeToPush();
+    console.log('[sprout] subscribeToPush() result', result.ok ? { ok: true } : result);
     if (result.ok) {
-      onSetPushSubscription(result.subscription);
-      setNotifStatus('idle');
+      // v5 debugging pass: the browser-side subscribe succeeding doesn't
+      // mean it's actually saved — await the save specifically here and
+      // check it, rather than assuming success like every other mutator
+      // does. A save that silently fails here means notifications quietly
+      // never fire again, with no other symptom (see plan.md's "v5
+      // revision note").
+      const saved = await onSetPushSubscription(result.subscription);
+      console.log('[sprout] push subscription save result', saved);
+      if (!saved) {
+        // Revert the optimistic local state so the "Enable notifications"
+        // button reappears and she can just retry, rather than being
+        // stuck looking "on" while the server never actually has it.
+        onSetPushSubscription(null);
+      }
+      setNotifStatus(saved ? 'idle' : 'save-failed');
     } else if (result.reason === 'ios-not-installed') {
       setNotifStatus('ios-hint');
     } else if (result.reason === 'permission-denied') {
@@ -152,6 +166,11 @@ export function SettingsModal({
           )}
           {notifStatus === 'error' && (
             <p className="form-error">Something went wrong enabling notifications — try again in a bit.</p>
+          )}
+          {notifStatus === 'save-failed' && (
+            <p className="form-error">
+              Your phone allowed it, but saving that to your account failed — check your connection and try again.
+            </p>
           )}
         </div>
 

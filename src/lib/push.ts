@@ -51,13 +51,16 @@ export type SubscribeResult =
 // (plan.md's "v4 revision note").
 export async function subscribeToPush(): Promise<SubscribeResult> {
   if (isIOS() && !isInStandaloneMode()) {
+    console.log('[sprout] push subscribe blocked: iOS, not installed to home screen');
     return { ok: false, reason: 'ios-not-installed' };
   }
   if (!isPushSupported()) {
+    console.log('[sprout] push subscribe blocked: unsupported (no serviceWorker/PushManager)');
     return { ok: false, reason: 'unsupported' };
   }
 
   const permission = await Notification.requestPermission();
+  console.log('[sprout] Notification.requestPermission() ->', permission);
   if (permission !== 'granted') {
     return { ok: false, reason: 'permission-denied' };
   }
@@ -65,13 +68,16 @@ export async function subscribeToPush(): Promise<SubscribeResult> {
   try {
     const registration = await navigator.serviceWorker.ready;
     const existing = await registration.pushManager.getSubscription();
+    console.log('[sprout] existing pushManager subscription?', existing != null);
     const subscription =
       existing ??
       (await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       }));
-    return { ok: true, subscription: subscription.toJSON() as PushSubscriptionData };
+    const json = subscription.toJSON() as PushSubscriptionData;
+    console.log('[sprout] pushManager.subscribe() succeeded, endpoint host:', new URL(json.endpoint).host);
+    return { ok: true, subscription: json };
   } catch (err) {
     console.warn('[sprout] push subscription failed', err);
     return { ok: false, reason: 'error' };
@@ -106,14 +112,36 @@ export async function schedulePomodoroPush(
   endAt: number,
   kind: 'focus' | 'break',
 ): Promise<void> {
+  const delaySeconds = Math.max(1, Math.round((endAt - Date.now()) / 1000));
   try {
-    const delaySeconds = Math.max(1, Math.round((endAt - Date.now()) / 1000));
-    await fetch('/api/pomodoro/schedule', {
+    const response = await fetch('/api/pomodoro/schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, kind, delaySeconds }),
     });
+    // A failed schedule call must never throw or block the timer — but it
+    // must also never fail *silently*. `fetch` only rejects on a network
+    // error, not on a non-2xx or a `{ok:false}` body, so both are checked
+    // and logged explicitly here (this was a real gap: previously neither
+    // case logged anything at all, making a broken schedule call
+    // indistinguishable from a working one from the browser console).
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+    if (!response.ok || (body && typeof body === 'object' && (body as { ok?: boolean }).ok === false)) {
+      console.warn('[sprout] Pomodoro push schedule call did not succeed', {
+        status: response.status,
+        body,
+        kind,
+        delaySeconds,
+      });
+      return;
+    }
+    console.log('[sprout] scheduled Pomodoro push', { kind, delaySeconds, body });
   } catch (err) {
-    console.warn('[sprout] failed to schedule a Pomodoro push notification', err);
+    console.warn('[sprout] failed to schedule a Pomodoro push notification (network error)', err);
   }
 }

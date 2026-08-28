@@ -51,32 +51,49 @@ export function useUserData(id: string | null) {
     };
   }, [id]);
 
+  // v5 debugging pass: persist() now resolves `true`/`false` rather than
+  // being purely fire-and-forget, and logs both outcomes (not just
+  // failure). Most mutators still don't await it — the whole point of
+  // "optimistic, no debounce" is not waiting on the network — but
+  // setPushSubscription below does, specifically because a save that
+  // silently fails there means notifications quietly stop working with
+  // no visible symptom until someone goes looking, which is exactly the
+  // class of bug this pass is closing.
   const persist = useCallback(
-    (next: UserData) => {
-      if (!id) return;
-      api.saveUserData(id, {
-        name: next.name,
-        classes: next.classes,
-        assignments: next.assignments,
-        onboardingDismissed: next.onboardingDismissed,
-        linkNoticeDismissed: next.linkNoticeDismissed,
-        pushSubscription: next.pushSubscription,
-        timeZone: next.timeZone,
-      }).catch((err) => {
-        console.warn('[sprout] Failed to save changes — they may not survive a reload.', err);
-      });
+    (next: UserData): Promise<boolean> => {
+      if (!id) return Promise.resolve(false);
+      return api
+        .saveUserData(id, {
+          name: next.name,
+          classes: next.classes,
+          assignments: next.assignments,
+          onboardingDismissed: next.onboardingDismissed,
+          linkNoticeDismissed: next.linkNoticeDismissed,
+          pushSubscription: next.pushSubscription,
+          timeZone: next.timeZone,
+        })
+        .then(() => {
+          console.log('[sprout] saved user data', { id, hasPushSubscription: next.pushSubscription != null });
+          return true;
+        })
+        .catch((err) => {
+          console.warn('[sprout] Failed to save changes — they may not survive a reload.', err);
+          return false;
+        });
     },
     [id],
   );
 
   const update = useCallback(
-    (fn: (prev: UserData) => UserData) => {
+    (fn: (prev: UserData) => UserData): Promise<boolean> => {
+      let result: Promise<boolean> = Promise.resolve(false);
       setData((prev) => {
         if (!prev) return prev;
         const next = fn(prev);
-        persist(next);
+        result = persist(next);
         return next;
       });
+      return result;
     },
     [persist],
   );
@@ -217,9 +234,15 @@ export function useUserData(id: string | null) {
 
   // v4, story 12: same update()/persist() pattern as every other mutator —
   // rides the existing PUT, no new API endpoint (plan.md's "v4 revision note").
+  // v5 debugging pass: returns whether the save actually succeeded, so
+  // SettingsModal can tell her "enabled" from "the browser step worked but
+  // saving it failed" instead of always showing success optimistically —
+  // see plan.md's "v5 revision note" for why that distinction matters here
+  // specifically (a silently-failed save here means notifications quietly
+  // never fire, with nothing else to indicate why).
   const setPushSubscription = useCallback(
-    (subscription: PushSubscriptionData | null) => {
-      update((prev) => ({ ...prev, pushSubscription: subscription }));
+    (subscription: PushSubscriptionData | null): Promise<boolean> => {
+      return update((prev) => ({ ...prev, pushSubscription: subscription }));
     },
     [update],
   );

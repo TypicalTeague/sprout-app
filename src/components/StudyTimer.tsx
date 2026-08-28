@@ -58,12 +58,21 @@ function savePrefs(focusMin: number, breakMin: number) {
   }
 }
 
-function playChime() {
+// v5 debugging pass, bug fix: this used to create a brand-new AudioContext
+// on every call. That's the actual reason the chime was silent — a
+// *freshly created* AudioContext starts `suspended` unless creation (or an
+// explicit .resume()) happens synchronously inside a user-gesture handler
+// (a click), and playChime() was only ever called from inside a
+// setInterval/visibilitychange callback, minutes after the Start tap that
+// triggered the session — nowhere near a gesture. A suspended context's
+// oscillator produces no audible sound and throws no error, so this failed
+// completely silently. Fixed by creating (and warming) exactly one
+// AudioContext, synchronously inside the Start/Resume click handler (see
+// ensureAudioContext below and its call site in toggleRunning), and
+// reusing that same already-unlocked context for every chime thereafter.
+function playChime(ctx: AudioContext) {
   try {
-    type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
-    const Ctx = window.AudioContext ?? (window as WebkitWindow).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    console.log('[sprout] playChime: AudioContext state before play =', ctx.state);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -73,8 +82,11 @@ function playChime() {
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
     osc.start();
     osc.stop(ctx.currentTime + 0.6);
-  } catch {
-    // A missed chime is never worth crashing the timer over.
+  } catch (err) {
+    // A missed chime is never worth crashing the timer over, but it's
+    // worth logging so a silent failure like the one above is diagnosable
+    // next time instead of just "no sound, no idea why."
+    console.warn('[sprout] chime playback failed', err);
   }
 }
 
@@ -113,6 +125,30 @@ export function StudyTimer({ notificationsEnabled, id }: StudyTimerProps) {
   // backgrounded tab (v5 bug fix — see plan.md's "v5 revision note").
   const endAtRef = useRef<number | null>(null);
 
+  // One AudioContext, created once and reused for the component's
+  // lifetime — see playChime's header comment above for why a fresh
+  // context per chime was the actual bug.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const ensureAudioContext = useCallback((): AudioContext | null => {
+    if (audioCtxRef.current) return audioCtxRef.current;
+    try {
+      type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
+      const Ctx = window.AudioContext ?? (window as WebkitWindow).webkitAudioContext;
+      if (!Ctx) {
+        console.warn('[sprout] Web Audio unavailable — chime disabled this session');
+        return null;
+      }
+      const ctx = new Ctx();
+      audioCtxRef.current = ctx;
+      console.log('[sprout] AudioContext created, initial state =', ctx.state);
+      return ctx;
+    } catch (err) {
+      console.warn('[sprout] failed to create AudioContext', err);
+      return null;
+    }
+  }, []);
+
   const tick = useCallback(() => {
     if (!running || endAtRef.current == null) return;
     const now = Date.now();
@@ -120,9 +156,19 @@ export function StudyTimer({ notificationsEnabled, id }: StudyTimerProps) {
     endAtRef.current = result.session.endAt;
     setSecondsLeft(Math.round(result.remainingMs / 1000));
     if (result.periodsCompleted > 0) {
+      console.log('[sprout] Pomodoro period ended', {
+        lastCompletedMode: result.lastCompletedMode,
+        newMode: result.session.mode,
+        cyclesCompleted: result.session.cyclesCompleted,
+      });
       setMode(result.session.mode);
       setCyclesCompleted(result.session.cyclesCompleted);
-      playChime();
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        playChime(ctx);
+      } else {
+        console.warn('[sprout] no warmed AudioContext available — chime skipped (Start/Resume should have created one)');
+      }
       setJustFinished(true);
       // Still running into the next period — schedule its push too, so a
       // multi-cycle session keeps getting notified as long as the tab had
@@ -170,6 +216,18 @@ export function StudyTimer({ notificationsEnabled, id }: StudyTimerProps) {
       endAtRef.current = null;
       setRunning(false);
     } else {
+      // Create/warm the AudioContext synchronously, right here in the
+      // click handler — this is the one moment guaranteed to count as a
+      // user gesture, which is what lets the context actually unlock
+      // (see playChime's header comment for why that matters).
+      const ctx = ensureAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx
+          .resume()
+          .then(() => console.log('[sprout] AudioContext resumed, state =', ctx.state))
+          .catch((err) => console.warn('[sprout] AudioContext.resume() failed', err));
+      }
+
       const endAt = Date.now() + secondsLeft * 1000;
       endAtRef.current = endAt;
       setRunning(true);
@@ -188,6 +246,24 @@ export function StudyTimer({ notificationsEnabled, id }: StudyTimerProps) {
     endAtRef.current = null;
     setRunning(false);
     setSecondsLeft((mode === 'focus' ? focusMin : breakMin) * 60);
+  };
+
+  // Skips the current break and moves straight into a focus period — no
+  // confirmation, no prompt, just an immediate switch (per the explicit
+  // ask: it should behave like a light switch, present but silent unless
+  // used). Only reachable while mode === 'break' (the button itself is
+  // conditionally rendered), so this never touches a focus period. Doesn't
+  // count as a completed cycle — only a finished *focus* period does that,
+  // unchanged from the existing rule.
+  const skipBreak = () => {
+    if (mode !== 'break') return;
+    const newEndAt = running ? Date.now() + focusMin * 60 * 1000 : null;
+    endAtRef.current = newEndAt;
+    setMode('focus');
+    setSecondsLeft(focusMin * 60);
+    if (running && notificationsEnabled && id && newEndAt) {
+      schedulePomodoroPush(id, newEndAt, 'focus');
+    }
   };
 
   const handleFocusMinChange = (value: number) => {
@@ -216,6 +292,11 @@ export function StudyTimer({ notificationsEnabled, id }: StudyTimerProps) {
           {mode === 'focus' ? '🌱 Focus' : '☕ Break'}
         </div>
         <div className="timer-display">{formatTime(secondsLeft)}</div>
+        {mode === 'break' && (
+          <button className="btn-ghost btn-small skip-break-btn" onClick={skipBreak}>
+            Skip break →
+          </button>
+        )}
         <div className="timer-progress-track">
           <div
             className={`timer-progress-fill mode-${mode}`}
